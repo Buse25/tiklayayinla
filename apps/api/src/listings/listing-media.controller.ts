@@ -1,0 +1,52 @@
+import { Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UploadedFiles, UseFilters, UseGuards, UseInterceptors, Body } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnprocessableEntityResponse } from '@nestjs/swagger';
+import { memoryStorage } from 'multer';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { JwtAccessGuard } from '../auth/guards/jwt-access.guard';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { ListingMediaResponseDto } from './dto/listing-media-response.dto';
+import { ReorderListingMediaDto } from './dto/reorder-listing-media.dto';
+import { MulterValidationFilter } from './filters/multer-validation.filter';
+import { ListingMediaService } from './listing-media.service';
+
+const TEN_MB = 10 * 1024 * 1024;
+
+@ApiTags('Listing Media')
+@ApiBearerAuth()
+@UseGuards(JwtAccessGuard)
+@Controller('listings/:id/media')
+export class ListingMediaController {
+  constructor(private readonly media: ListingMediaService) {}
+
+  @Post()
+  @UseFilters(MulterValidationFilter)
+  @UseInterceptors(FilesInterceptor('files', 30, { storage: memoryStorage(), limits: { fileSize: TEN_MB, files: 30 } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Bir ilana en fazla 30 JPEG, PNG veya WebP görsel yükler' })
+  @ApiBody({ schema: { type: 'object', properties: { files: { type: 'array', items: { type: 'string', format: 'binary' } } }, required: ['files'] } })
+  @ApiCreatedResponse({ type: [ListingMediaResponseDto] })
+  @ApiUnprocessableEntityResponse({ description: 'Geçersiz dosya, boyut veya görsel limiti' })
+  upload(@CurrentUser() user: AuthenticatedUser, @Param('id') listingId: string, @UploadedFiles() files: Express.Multer.File[] = []) { return this.media.upload(user.id, listingId, files); }
+
+  @Get()
+  @ApiOperation({ summary: 'İlan görsellerini sıralı olarak getirir' })
+  @ApiOkResponse({ type: [ListingMediaResponseDto] })
+  findAll(@CurrentUser() user: AuthenticatedUser, @Param('id') listingId: string) { return this.media.findAll(user.id, listingId); }
+
+  @Patch('reorder')
+  @ApiOperation({ summary: 'İlanın tüm görsellerinin sırasını tek transaction içinde günceller' })
+  @ApiOkResponse({ type: [ListingMediaResponseDto] })
+  reorder(@CurrentUser() user: AuthenticatedUser, @Param('id') listingId: string, @Body() dto: ReorderListingMediaDto) { return this.media.reorder(user.id, listingId, dto.mediaIds); }
+
+  @Patch(':mediaId/cover')
+  @ApiOperation({ summary: 'Görseli kapak olarak atar' })
+  @ApiOkResponse({ type: ListingMediaResponseDto })
+  setCover(@CurrentUser() user: AuthenticatedUser, @Param('id') listingId: string, @Param('mediaId') mediaId: string) { return this.media.setCover(user.id, listingId, mediaId); }
+
+  @Delete(':mediaId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Görseli ve yerel dosyasını siler; kapak silinirse sıradakini kapak yapar' })
+  @ApiNoContentResponse()
+  async remove(@CurrentUser() user: AuthenticatedUser, @Param('id') listingId: string, @Param('mediaId') mediaId: string): Promise<void> { await this.media.remove(user.id, listingId, mediaId); }
+}
