@@ -1,0 +1,5 @@
+ALTER TYPE "ConnectionStatus" RENAME VALUE 'PENDING' TO 'NOT_TESTED';
+ALTER TYPE "ConnectionStatus" RENAME VALUE 'ERROR' TO 'FAILED';
+
+ALTER TABLE "UserPortalAccount"
+  ADD COLUMN "lastError" TEXT;

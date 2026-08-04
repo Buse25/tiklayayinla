@@ -4,8 +4,19 @@ const prisma = new PrismaClient();
 
 async function main() {
   for (const portal of [
-    { code: 'mock-xml', name: 'Mock XML Portal', adapterKey: 'mock-xml' },
-    { code: 'mock-rest', name: 'Mock REST Portal', adapterKey: 'mock-rest' },
+    {
+      code: 'mock-xml', name: 'Mock XML Portal', adapterKey: 'mock-xml', connectionType: 'XML_FEED',
+      credentialSchema: { fields: [
+        { key: 'username', label: 'Kullanıcı adı', type: 'text', required: true },
+        { key: 'password', label: 'Şifre', type: 'password', required: true },
+      ] },
+    },
+    {
+      code: 'mock-rest', name: 'Mock REST Portal', adapterKey: 'mock-rest', connectionType: 'REST_API',
+      credentialSchema: { fields: [
+        { key: 'apiKey', label: 'API Anahtarı', type: 'password', required: true },
+      ] },
+    },
   ]) {
     await prisma.portal.upsert({ where: { code: portal.code }, update: portal, create: portal });
   }

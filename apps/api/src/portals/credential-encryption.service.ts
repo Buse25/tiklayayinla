@@ -23,8 +23,8 @@ export class CredentialEncryptionService {
   }
 
   private loadKey(): Buffer {
-    const value = process.env.PORTAL_CREDENTIALS_ENCRYPTION_KEY;
-    if (!value || !/^[a-fA-F0-9]{64}$/.test(value)) throw new Error('PORTAL_CREDENTIALS_ENCRYPTION_KEY must be a 64-character hexadecimal AES-256 key.');
+    const value = process.env.PORTAL_CREDENTIALS_KEY;
+    if (!value || !/^[a-fA-F0-9]{64}$/.test(value)) throw new Error('PORTAL_CREDENTIALS_KEY must be a 64-character hexadecimal AES-256 key.');
     return Buffer.from(value, 'hex');
   }
 }

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse, ApiUnprocessableEntityResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags, ApiTooManyRequestsResponse, ApiUnauthorizedResponse, ApiUnprocessableEntityResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
@@ -18,23 +19,29 @@ export class AuthController {
   health() { return { module: 'auth', status: 'ready' }; }
 
   @Post('register')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Yeni kullanıcı kaydı oluşturur' })
   @ApiOkResponse({ type: AuthResponseDto })
   @ApiUnprocessableEntityResponse({ description: 'Geçersiz e-posta veya parola' })
+  @ApiTooManyRequestsResponse({ description: 'Bir dakika içinde en fazla 5 kayıt isteği gönderilebilir.' })
   async register(@Body() dto: RegisterDto): Promise<AuthResponseDto> { return this.authService.register(dto); }
 
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'E-posta ve parola ile giriş yapar' })
   @ApiOkResponse({ type: AuthResponseDto })
   @ApiUnauthorizedResponse({ description: 'E-posta veya parola geçersiz' })
+  @ApiTooManyRequestsResponse({ description: 'Bir dakika içinde en fazla 10 giriş isteği gönderilebilir.' })
   async login(@Body() dto: LoginDto): Promise<AuthResponseDto> { return this.authService.login(dto); }
 
   @Post('refresh')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh tokenı döndürür ve token çiftini yeniler' })
   @ApiOkResponse({ type: AuthResponseDto })
   @ApiUnauthorizedResponse({ description: 'Refresh token geçersiz, süresi dolmuş veya iptal edilmiş' })
+  @ApiTooManyRequestsResponse({ description: 'Bir dakika içinde en fazla 20 token yenileme isteği gönderilebilir.' })
   async refresh(@Body() dto: RefreshTokenDto): Promise<AuthResponseDto> { return this.authService.refresh(dto.refreshToken); }
 
   @Post('logout')

@@ -52,6 +52,7 @@ enum PropertyType {
 
 enum ListingStatus {
   DRAFT
+  PUBLISHING
   ACTIVE
   ARCHIVED
 }
@@ -64,10 +65,10 @@ enum ListingMediaType {
 }
 
 enum ConnectionStatus {
-  PENDING
+  NOT_TESTED
   CONNECTED
   DISCONNECTED
-  ERROR
+  FAILED
 }
 
 enum PublicationStatus {
@@ -75,6 +76,7 @@ enum PublicationStatus {
   QUEUED
   PROCESSING
   PUBLISHED
+  UPDATE_REQUIRED
   FAILED
   UNPUBLISHED
 }
@@ -182,6 +184,7 @@ model User {
   passwordHash  String
   firstName     String
   lastName      String
+  phone         String?
   role          UserRole       @default(AGENT)
   status        UserStatus     @default(ACTIVE)
   createdAt     DateTime       @default(now())
@@ -329,6 +332,10 @@ model Portal {
   name         String
   adapterKey   String                @unique
   isActive     Boolean               @default(true)
+  connectionType String               @default("REST_API")
+  credentialSchema Json?
+  documentationUrl String?
+  logoUrl      String?
   userAccounts UserPortalAccount[]
   publications ListingPublication[]
 }
@@ -338,8 +345,9 @@ model UserPortalAccount {
   userId               String           @db.Uuid
   portalId             String           @db.Uuid
   credentialsEncrypted String           @db.Text
-  connectionStatus     ConnectionStatus @default(PENDING)
+  connectionStatus     ConnectionStatus @default(NOT_TESTED)
   lastCheckedAt        DateTime?
+  lastError            String?          @db.Text
   user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   portal               Portal           @relation(fields: [portalId], references: [id], onDelete: Cascade)
   @@unique([userId, portalId])

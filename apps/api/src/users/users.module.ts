@@ -1,5 +1,6 @@
-import { Controller, Get, Module } from '@nestjs/common';
-@Controller('users')
-class UsersController { @Get('health') health() { return { module: 'users', status: 'ready' }; } }
-@Module({ controllers: [UsersController] })
+import { Module } from '@nestjs/common';
+import { UsersController } from './users.controller';
+import { UsersService } from './users.service';
+
+@Module({ controllers: [UsersController], providers: [UsersService] })
 export class UsersModule {}

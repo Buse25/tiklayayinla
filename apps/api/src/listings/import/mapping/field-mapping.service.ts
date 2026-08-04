@@ -1,0 +1,20 @@
+import { Injectable } from '@nestjs/common';
+import type { ImportFieldSuggestionDto } from './dto/analyze-import.dto';
+
+const dictionary: Record<string, string[]> = {
+  title: ['ilan basligi', 'baslik', 'title'], description: ['aciklama', 'ilan aciklamasi', 'description', 'detay'], price: ['fiyat', 'satis bedeli', 'satis fiyati', 'price', 'bedel', 'kira'], currency: ['para birimi', 'doviz', 'currency', 'kur'], listing_type: ['ilan tipi', 'islem tipi', 'satilik kiralik', 'listing type'], property_type: ['gayrimenkul tipi', 'emlak tipi', 'property type'], city: ['il', 'sehir', 'city'], district: ['ilce', 'district'], neighborhood: ['mahalle', 'semt', 'neighborhood'], address: ['adres', 'acik adres', 'address'], latitude: ['enlem', 'latitude', 'lat'], longitude: ['boylam', 'longitude', 'lng', 'lon'], gross_area: ['brut m2', 'brut metrekare', 'm2 brut', 'gross area'], net_area: ['net m2', 'net metrekare', 'm2 net', 'net area'], room_count: ['oda sayisi', 'oda', 'room count'], building_age: ['bina yasi'], floor_number: ['bulundugu kat'], total_floors: ['kat sayisi'], heating_type: ['isinma', 'heating type'], bathroom_count: ['banyo sayisi'], kitchen_type: ['mutfak tipi'], has_balcony: ['balkon', 'has balcony'], has_elevator: ['asansor', 'has elevator'], parking_type: ['otopark', 'parking type'], is_furnished: ['esyali', 'is furnished'], occupancy_status: ['kullanim durumu'], is_in_complex: ['site icerisinde', 'site icinde', 'is in complex'], complex_name: ['site adi', 'complex name'], monthly_fee: ['aidat'], is_credit_eligible: ['krediye uygun'], energy_certificate: ['enerji kimlik belgesi'], title_deed_status: ['tapu durumu'], advertiser_type: ['kimden'], is_exchange_accepted: ['takas'], housing_type: ['konut tipi'], facades: ['cephe'], interior_features: ['ic ozellikler'], exterior_features: ['dis ozellikler'], nearby_places: ['yakindaki yerler'], transportation: ['ulasim'], views: ['manzara'], accessibility_features: ['engelli erisimi'],
+};
+const required = ['title', 'description', 'price', 'currency', 'listing_type', 'property_type', 'city', 'district', 'address'];
+
+@Injectable()
+export class FieldMappingService {
+  suggest(sourceField: string, samples: string[]): ImportFieldSuggestionDto {
+    const normalized = normalize(sourceField);
+    for (const [target, aliases] of Object.entries(dictionary)) if (aliases.includes(normalized) || normalize(target) === normalized) return { sourceField, dataType: dataType(samples), sampleValues: samples, suggestedTarget: target, confidence: aliases.includes(normalized) ? 0.96 : 1, transformation: transformationFor(target), reason: 'Kolon adı sözlük eşleşmesiyle bulundu.' };
+    return { sourceField, dataType: dataType(samples), sampleValues: samples, suggestedTarget: null, confidence: 0, transformation: null, reason: 'Güvenilir otomatik eşleme bulunamadı.' };
+  }
+  requiredMissing(suggestions: ImportFieldSuggestionDto[]): string[] { return required.filter((target) => !suggestions.some((item) => item.suggestedTarget === target && item.confidence >= 0.9)); }
+}
+export function normalize(value: string): string { return value.replace(/([a-zçğıöşü])([A-ZÇĞİÖŞÜ])/g, '$1 $2').toLocaleLowerCase('tr').replace(/ı/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o').replace(/ç/g, 'c').replace(/[_\-.]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+function dataType(samples: string[]): 'string' | 'number' | 'unknown' { if (!samples.length) return 'unknown'; return samples.every((value) => /^[-+]?\d+(?:[.,]\d+)?$/.test(value.replace(/\s/g, ''))) ? 'number' : 'string'; }
+function transformationFor(target: string): string | null { if (target === 'price') return 'currency-number'; if (target.endsWith('_type') || target === 'listing_type' || target === 'property_type') return 'enum-normalize'; if (target.startsWith('has_') || target.startsWith('is_')) return 'boolean-tr'; if (target.includes('area')) return 'area-number'; if (target.includes('features') || ['facades', 'nearby_places', 'transportation', 'views', 'accessibility_features'].includes(target)) return 'feature-list'; return 'trim'; }

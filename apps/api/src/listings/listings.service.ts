@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { FeatureCategory, Listing, Prisma, PublicationStatus } from '@prisma/client';
+import { FeatureCategory, Listing, ListingStatus, Prisma, PublicationStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateListingDto } from './dto/create-listing.dto';
@@ -7,6 +7,8 @@ import { ListListingsQueryDto } from './dto/list-listings-query.dto';
 import { ListingResponseDto, ListingsPageResponseDto } from './dto/listing-response.dto';
 import { ResidentialDetailsDto } from './dto/residential-details.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
+import { UpdateListingStatusDto } from './dto/update-listing-status.dto';
+import { UpdateListingResponseDto } from './dto/update-listing-response.dto';
 
 const featureFields = [
   ['facades', FeatureCategory.FACADE], ['interiorFeatures', FeatureCategory.INTERIOR], ['exteriorFeatures', FeatureCategory.EXTERIOR],
@@ -47,26 +49,48 @@ export class ListingsService {
 
   async findOne(ownerId: string, id: string): Promise<ListingResponseDto> { return toResponse(await this.getOwnedDetail(ownerId, id)); }
 
-  async update(ownerId: string, id: string, dto: UpdateListingDto): Promise<ListingResponseDto> {
-    await this.ensureOwned(ownerId, id);
+  async update(ownerId: string, id: string, dto: UpdateListingDto): Promise<UpdateListingResponseDto> {
+    const current = await this.getOwnedDetail(ownerId, id);
+    if (current.status === ListingStatus.PUBLISHING) throw new ConflictException('Yayınlanmakta olan ilan güncellenemez.');
     const selections = await this.resolveFeatures(dto);
     try {
-      const listing = await this.prisma.$transaction(async tx => {
-        await tx.listing.update({ where: { id }, data: toListingData(dto) });
-        if (dto.residentialDetails !== undefined) await tx.residentialDetails.upsert({ where: { listingId: id }, create: { listingId: id, ...toResidentialData(dto.residentialDetails) }, update: toResidentialData(dto.residentialDetails) });
-        for (const [category, featureIds] of Object.entries(selections) as [FeatureCategory, string[]][]) {
+      const listingData = toListingData(dto);
+      const residentialData = dto.residentialDetails === undefined ? undefined : toResidentialData(dto.residentialDetails);
+      const mainChanged = hasChanged(current, listingData);
+      const residentialChanged = residentialData !== undefined && hasChanged(current.residentialDetails, residentialData);
+      const changedFeatureCategories = featureFields.filter(([, category]) => selections[category] !== undefined && !sameIds(selections[category]!, current.features.filter((item) => item.featureDefinition.category === category).map((item) => item.featureDefinition.id)));
+      const changed = mainChanged || residentialChanged || changedFeatureCategories.length > 0;
+      const result = await this.prisma.$transaction(async tx => {
+        if (mainChanged) await tx.listing.update({ where: { id }, data: listingData });
+        if (residentialChanged && residentialData) await tx.residentialDetails.upsert({ where: { listingId: id }, create: { listingId: id, ...residentialData }, update: residentialData });
+        for (const [, category] of changedFeatureCategories) {
+          const featureIds = selections[category]!;
           await tx.listingFeature.deleteMany({ where: { listingId: id, featureDefinition: { is: { category } } } });
           if (featureIds.length) await tx.listingFeature.createMany({ data: featureIds.map(featureDefinitionId => ({ listingId: id, featureDefinitionId })), skipDuplicates: true });
         }
-        return tx.listing.findUniqueOrThrow({ where: { id }, include: detailInclude });
+        const affectedPublications = current.status === ListingStatus.ACTIVE && changed
+          ? (await tx.listingPublication.updateMany({ where: { listingId: id, status: PublicationStatus.PUBLISHED }, data: { status: PublicationStatus.UPDATE_REQUIRED, lastError: null } })).count
+          : 0;
+        return { listing: await tx.listing.findUniqueOrThrow({ where: { id }, include: detailInclude }), affectedPublications };
       });
-      return toResponse(listing);
+      return { ...toResponse(result.listing), publicationSync: { required: result.affectedPublications > 0, affectedPublications: result.affectedPublications } };
     } catch (error) { throw this.toKnownException(error); }
   }
 
+  async updateStatus(ownerId: string, id: string, dto: UpdateListingStatusDto): Promise<ListingResponseDto> {
+    const listing = await this.ensureOwned(ownerId, id);
+    const allowed = (listing.status === ListingStatus.DRAFT && dto.status === ListingStatus.ARCHIVED)
+      || (listing.status === ListingStatus.ACTIVE && dto.status === ListingStatus.ARCHIVED)
+      || (listing.status === ListingStatus.ARCHIVED && dto.status === ListingStatus.DRAFT);
+    if (!allowed) throw new ConflictException('Bu ilan için istenen status geçişine izin verilmiyor.');
+    await this.prisma.listing.update({ where: { id }, data: { status: dto.status } });
+    return this.findOne(ownerId, id);
+  }
+
   async remove(ownerId: string, id: string): Promise<void> {
-    const listing = await this.prisma.listing.findFirst({ where: { id, ownerId }, select: { id: true } });
+    const listing = await this.prisma.listing.findFirst({ where: { id, ownerId }, select: { id: true, status: true } });
     if (!listing) throw new NotFoundException('İlan bulunamadı.');
+    if (listing.status === ListingStatus.PUBLISHING || listing.status === ListingStatus.ACTIVE) throw new ConflictException('Yayınlanan veya yayınlanmakta olan ilan silinemez.');
     const activePublication = await this.prisma.listingPublication.findFirst({ where: { listingId: id, status: { in: [PublicationStatus.PENDING, PublicationStatus.QUEUED, PublicationStatus.PROCESSING, PublicationStatus.PUBLISHED] } }, select: { id: true } });
     if (activePublication) throw new ConflictException('Aktif veya yayınlanmış portal kaydı bulunan ilan silinemez.');
     try { await this.prisma.listing.delete({ where: { id } }); } catch (error) { throw this.toKnownException(error); }
@@ -107,6 +131,8 @@ function toListingData(dto: Partial<CreateListingDto>): Prisma.ListingUncheckedC
   return { ...(dto.title !== undefined && { title: dto.title.trim() }), ...(dto.description !== undefined && { description: dto.description.trim() }), ...(dto.price !== undefined && { price: dto.price }), ...(dto.currency !== undefined && { currency: dto.currency }), ...(dto.listingType !== undefined && { listingType: dto.listingType }), ...(dto.propertyType !== undefined && { propertyType: dto.propertyType }), ...(dto.city !== undefined && { city: dto.city.trim() }), ...(dto.district !== undefined && { district: dto.district.trim() }), ...(dto.neighborhood !== undefined && { neighborhood: dto.neighborhood.trim() }), ...(dto.address !== undefined && { address: dto.address.trim() }), ...(dto.latitude !== undefined && { latitude: dto.latitude }), ...(dto.longitude !== undefined && { longitude: dto.longitude }) } as Prisma.ListingUncheckedCreateInput;
 }
 function toResidentialData(dto: ResidentialDetailsDto): Omit<Prisma.ResidentialDetailsUncheckedCreateInput, 'listingId'> { return { ...(dto.grossArea !== undefined && { grossArea: dto.grossArea }), ...(dto.netArea !== undefined && { netArea: dto.netArea }), ...(dto.roomCount !== undefined && { roomCount: dto.roomCount.trim() }), ...(dto.buildingAge !== undefined && { buildingAge: dto.buildingAge }), ...(dto.floorNumber !== undefined && { floorNumber: dto.floorNumber }), ...(dto.totalFloors !== undefined && { totalFloors: dto.totalFloors }), ...(dto.heatingType !== undefined && { heatingType: dto.heatingType }), ...(dto.bathroomCount !== undefined && { bathroomCount: dto.bathroomCount }), ...(dto.kitchenType !== undefined && { kitchenType: dto.kitchenType }), ...(dto.hasBalcony !== undefined && { hasBalcony: dto.hasBalcony }), ...(dto.hasElevator !== undefined && { hasElevator: dto.hasElevator }), ...(dto.parkingType !== undefined && { parkingType: dto.parkingType }), ...(dto.isFurnished !== undefined && { isFurnished: dto.isFurnished }), ...(dto.occupancyStatus !== undefined && { occupancyStatus: dto.occupancyStatus }), ...(dto.isInComplex !== undefined && { isInComplex: dto.isInComplex }), ...(dto.complexName !== undefined && { complexName: dto.complexName.trim() }), ...(dto.monthlyFee !== undefined && { monthlyFee: dto.monthlyFee }), ...(dto.isCreditEligible !== undefined && { isCreditEligible: dto.isCreditEligible }), ...(dto.energyCertificate !== undefined && { energyCertificate: dto.energyCertificate }), ...(dto.titleDeedStatus !== undefined && { titleDeedStatus: dto.titleDeedStatus }), ...(dto.advertiserType !== undefined && { advertiserType: dto.advertiserType }), ...(dto.isExchangeAccepted !== undefined && { isExchangeAccepted: dto.isExchangeAccepted }), ...(dto.housingType !== undefined && { housingType: dto.housingType }) }; }
+function hasChanged(current: Record<string, unknown> | null, update: Record<string, unknown>): boolean { return Object.entries(update).some(([key, value]) => String(current?.[key] ?? '') !== String(value ?? '')); }
+function sameIds(left: string[], right: string[]): boolean { return left.length === right.length && left.every((id) => right.includes(id)); }
 
 function toResponse(listing: ListingDetail): ListingResponseDto {
   const groups = { facades: [], interiorFeatures: [], exteriorFeatures: [], nearbyPlaces: [], transportation: [], views: [], accessibilityFeatures: [] } as ListingResponseDto['features'];

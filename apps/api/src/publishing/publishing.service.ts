@@ -3,11 +3,14 @@ import { AttemptStatus, ConnectionStatus, Prisma, PublicationAction, Publication
 import type { CanonicalListing, PortalCode } from '@tiklayayinla/shared-types';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { ListingStatusService } from '../listings/listing-status.service';
 import { AdapterRegistry } from './adapter.registry';
 import { RabbitMqService } from './rabbitmq.service';
+import { RedisService } from '../redis/redis.service';
 import type { PublishListingJob } from './publishing.types';
 
 type PublishRequest = { portalAccountIds: string[] };
+type RepublishRequest = { publicationIds: string[] };
 
 const workerListingInclude = {
   owner: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
@@ -23,21 +26,20 @@ export class PublishingService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly queue: RabbitMqService,
     private readonly adapters: AdapterRegistry,
+    private readonly listingStatus: ListingStatusService,
+    private readonly redis: RedisService,
   ) {}
 
   async onModuleInit() {
-    try {
-      await this.queue.consume((job) => this.process(job));
-    } catch {
-      this.logger.warn('RabbitMQ unavailable; worker will start when connectivity is configured.');
-    }
+    this.queue.consume((job) => this.process(job));
   }
 
   async requestPublish(userId: string, listingId: string, request: PublishRequest) {
-    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: userId }, select: { id: true, media: { select: { id: true }, take: 1 } } });
+    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: userId }, select: { id: true, status: true, media: { select: { id: true }, take: 1 } } });
     if (!listing) throw new NotFoundException('İlan bulunamadı.');
     if (!listing.media.length) throw new UnprocessableEntityException('Yayınlama için ilanda en az bir görsel bulunmalıdır.');
 
+    if (listing.status === 'ARCHIVED') throw new ConflictException('Arşivlenmiş ilan yayınlanamaz.');
     const accountIds = [...new Set(request.portalAccountIds)];
     const accounts = await this.prisma.userPortalAccount.findMany({
       where: { id: { in: accountIds }, userId },
@@ -58,34 +60,97 @@ export class PublishingService implements OnModuleInit {
         const action = current?.externalListingId ? PublicationAction.UPDATE : PublicationAction.CREATE;
         const publication = await tx.listingPublication.upsert({
           where: { listingId_portalId: { listingId, portalId: account.portalId } },
-          create: { listingId, portalId: account.portalId, status: PublicationStatus.QUEUED },
-          update: { status: PublicationStatus.QUEUED, lastError: null },
+          create: { listingId, portalId: account.portalId, status: PublicationStatus.PENDING },
+          update: { status: PublicationStatus.PENDING, lastError: null },
           select: { id: true, status: true },
         });
         return { publication, account, action };
       })),
     );
 
+    let queuedJobCount = 0;
     try {
-      await Promise.all(queued.map(({ publication, account, action }) => this.queue.publish({
+      const enqueueResults = await Promise.allSettled(queued.map(({ publication, account, action }) => this.queue.publish({
         jobId: randomUUID(),
         listingId,
-        listingPublicationId: publication.id,
-        userPortalAccountId: account.id,
+        publicationId: publication.id,
+        portalAccountId: account.id,
+        portalId: account.portalId,
         adapterKey: account.portal.adapterKey,
         action,
-        requestedAt: new Date().toISOString(),
+        attemptNumber: 1,
+        createdAt: new Date().toISOString(),
       })));
+      const failedPublicationIds = enqueueResults.flatMap((result, index) => result.status === 'rejected' ? [queued[index].publication.id] : []);
+      const acceptedPublicationIds = enqueueResults.flatMap((result, index) => result.status === 'fulfilled' ? [queued[index].publication.id] : []);
+      queuedJobCount = enqueueResults.filter((result) => result.status === 'fulfilled').length;
+      if (acceptedPublicationIds.length) await this.prisma.listingPublication.updateMany({ where: { id: { in: acceptedPublicationIds } }, data: { status: PublicationStatus.QUEUED } });
+      if (failedPublicationIds.length) await this.prisma.listingPublication.updateMany({ where: { id: { in: failedPublicationIds } }, data: { status: PublicationStatus.FAILED, lastError: 'Yayın işi kuyruğa gönderilemedi.' } });
+      if (!enqueueResults.some((result) => result.status === 'fulfilled')) {
+        await this.listingStatus.syncFromPublications(listingId);
+        throw new ConflictException('Yayın işi kuyruğa gönderilemedi.');
+      }
     } catch (error) {
       await this.prisma.listingPublication.updateMany({ where: { id: { in: queued.map(({ publication }) => publication.id) } }, data: { status: PublicationStatus.FAILED, lastError: 'Yayın işi kuyruğa gönderilemedi.' } });
+      await this.listingStatus.syncFromPublications(listingId);
       throw error;
     }
+
+    await this.listingStatus.markPublishing(listingId);
 
     return {
       accepted: true,
       listingId,
-      publications: queued.map(({ publication, account }) => ({ id: publication.id, portalId: account.portalId, portalName: account.portal.name, status: publication.status })),
+      queuedJobCount,
+      publications: queued.map(({ publication, account }) => ({ id: publication.id, portalId: account.portalId, portalName: account.portal.name, status: PublicationStatus.QUEUED })),
     };
+  }
+
+  async requestRepublish(userId: string, listingId: string, request: RepublishRequest) {
+    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: userId }, select: { id: true, status: true, media: { select: { id: true }, take: 1 } } });
+    if (!listing) throw new NotFoundException('İlan bulunamadı.');
+    if (!listing.media.length) throw new UnprocessableEntityException('Yeniden yayınlama için ilanda en az bir görsel bulunmalıdır.');
+    if (listing.status === 'ARCHIVED') throw new ConflictException('Arşivlenmiş ilan yeniden yayınlanamaz.');
+
+    const publicationIds = [...new Set(request.publicationIds)];
+    const publications = await this.prisma.listingPublication.findMany({
+      where: { id: { in: publicationIds }, listingId, status: { in: [PublicationStatus.UPDATE_REQUIRED, PublicationStatus.FAILED] } },
+      include: { portal: { select: { id: true, name: true, adapterKey: true, isActive: true } } },
+    });
+    if (publications.length !== publicationIds.length) throw new UnprocessableEntityException('Yalnızca UPDATE_REQUIRED veya FAILED durumundaki bu ilana ait yayınlar yeniden yayınlanabilir.');
+    if (publications.some((publication) => !publication.portal.isActive)) throw new ConflictException('Pasif bir portal için yeniden yayın başlatılamaz.');
+
+    const accounts = await this.prisma.userPortalAccount.findMany({ where: { userId, portalId: { in: publications.map((publication) => publication.portalId) } }, select: { id: true, portalId: true, connectionStatus: true } });
+    const accountByPortal = new Map(accounts.map((account) => [account.portalId, account]));
+    if (publications.some((publication) => accountByPortal.get(publication.portalId)?.connectionStatus !== ConnectionStatus.CONNECTED)) throw new ConflictException('Portal hesabı CONNECTED durumda olmadan yeniden yayın başlatılamaz.');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.listingPublication.updateMany({ where: { id: { in: publicationIds } }, data: { status: PublicationStatus.PENDING, lastError: null } });
+      await tx.listing.update({ where: { id: listingId }, data: { status: 'PUBLISHING' } });
+    });
+
+    let queuedJobCount = 0;
+    try {
+      const enqueueResults = await Promise.allSettled(publications.map((publication) => {
+        const account = accountByPortal.get(publication.portalId)!;
+        return this.queue.publish({ jobId: randomUUID(), listingId, publicationId: publication.id, portalAccountId: account.id, portalId: publication.portalId, adapterKey: publication.portal.adapterKey, action: publication.externalListingId ? PublicationAction.UPDATE : PublicationAction.CREATE, attemptNumber: 1, createdAt: new Date().toISOString() });
+      }));
+      const failedIds = enqueueResults.flatMap((result, index) => result.status === 'rejected' ? [publications[index].id] : []);
+      const acceptedIds = enqueueResults.flatMap((result, index) => result.status === 'fulfilled' ? [publications[index].id] : []);
+      queuedJobCount = enqueueResults.filter((result) => result.status === 'fulfilled').length;
+      if (acceptedIds.length) await this.prisma.listingPublication.updateMany({ where: { id: { in: acceptedIds } }, data: { status: PublicationStatus.QUEUED } });
+      if (failedIds.length) await this.prisma.listingPublication.updateMany({ where: { id: { in: failedIds } }, data: { status: PublicationStatus.FAILED, lastError: 'Yayın işi kuyruğa gönderilemedi.' } });
+      if (!enqueueResults.some((result) => result.status === 'fulfilled')) {
+        await this.listingStatus.syncFromPublications(listingId);
+        throw new ConflictException('Yeniden yayın işi kuyruğa gönderilemedi.');
+      }
+    } catch (error) {
+      await this.prisma.listingPublication.updateMany({ where: { id: { in: publicationIds }, status: PublicationStatus.QUEUED }, data: { status: PublicationStatus.FAILED, lastError: 'Yayın işi kuyruğa gönderilemedi.' } });
+      await this.listingStatus.syncFromPublications(listingId);
+      throw error;
+    }
+
+    return { accepted: true, listingId, queuedJobCount, publications: publications.map((publication) => ({ id: publication.id, portalId: publication.portalId, portalName: publication.portal.name, status: PublicationStatus.QUEUED })) };
   }
 
   async getPublications(userId: string, listingId: string) {
@@ -112,8 +177,12 @@ export class PublishingService implements OnModuleInit {
   }
 
   private async process(job: PublishListingJob): Promise<void> {
+    if (!await this.redis.claimJob(job.jobId, job.attemptNumber)) {
+      this.logger.log({ event: 'duplicate_job_skipped', jobId: job.jobId, publicationId: job.publicationId });
+      return;
+    }
     const publication = await this.prisma.listingPublication.findUnique({
-      where: { id: job.listingPublicationId },
+      where: { id: job.publicationId },
       include: { listing: { include: workerListingInclude }, portal: { select: { id: true, adapterKey: true } } },
     });
     if (!publication || publication.listingId !== job.listingId) {
@@ -121,14 +190,14 @@ export class PublishingService implements OnModuleInit {
       return;
     }
 
-    const attemptNumber = (await this.prisma.publicationAttempt.aggregate({ where: { listingPublicationId: publication.id, action: job.action }, _max: { attemptNumber: true } }))._max.attemptNumber ?? 0;
     const attempt = await this.prisma.$transaction(async (tx) => {
       await tx.listingPublication.update({ where: { id: publication.id }, data: { status: PublicationStatus.PROCESSING, lastError: null } });
-      return tx.publicationAttempt.create({ data: { listingPublicationId: publication.id, action: job.action, status: AttemptStatus.STARTED, attemptNumber: attemptNumber + 1 } });
+      return tx.publicationAttempt.create({ data: { listingPublicationId: publication.id, action: job.action, status: AttemptStatus.STARTED, attemptNumber: job.attemptNumber } });
     });
 
     try {
-      const account = await this.prisma.userPortalAccount.findFirst({ where: { id: job.userPortalAccountId, userId: publication.listing.ownerId, portalId: publication.portalId, connectionStatus: ConnectionStatus.CONNECTED }, select: { id: true } });
+      const account = await this.prisma.userPortalAccount.findFirst({ where: { id: job.portalAccountId, userId: publication.listing.ownerId, portalId: publication.portalId, connectionStatus: ConnectionStatus.CONNECTED }, select: { id: true } });
+      if (publication.portal.id !== job.portalId) throw new Error('Portal kimliği değişti.');
       if (!account) throw new Error('Portal hesabı bulunamadı veya bağlantısı aktif değil.');
       if (publication.portal.adapterKey !== job.adapterKey) throw new Error('Portal adapter anahtarı değişti.');
 
@@ -142,16 +211,58 @@ export class PublishingService implements OnModuleInit {
         this.prisma.publicationAttempt.update({ where: { id: attempt.id }, data: { status: AttemptStatus.SUCCEEDED, responsePayload: toJson(result.rawResponse) } }),
         this.prisma.listingPublication.update({ where: { id: publication.id }, data: { status: PublicationStatus.PUBLISHED, externalListingId: result.externalListingId, externalUrl: result.externalUrl ?? null, publishedAt: new Date(result.publishedAt), lastError: null } }),
       ]);
-      this.logger.log(`Listing ${publication.listingId} published to ${job.adapterKey}: ${result.externalListingId}`);
+      await this.listingStatus.syncFromPublications(publication.listingId);
+      this.logger.log({ event: 'publication_succeeded', jobId: job.jobId, publicationId: publication.id, attemptNumber: job.attemptNumber });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Bilinmeyen yayınlama hatası.';
-      await this.prisma.$transaction([
-        this.prisma.publicationAttempt.update({ where: { id: attempt.id }, data: { status: AttemptStatus.FAILED, errorMessage: message } }),
-        this.prisma.listingPublication.update({ where: { id: publication.id }, data: { status: PublicationStatus.FAILED, lastError: message } }),
-      ]);
-      throw error;
+      const sanitizedMessage = safePublishingError(error);
+      const retryDelay = retryDelayFor(error, job.attemptNumber);
+      await this.prisma.publicationAttempt.update({ where: { id: attempt.id }, data: { status: AttemptStatus.FAILED, errorMessage: sanitizedMessage } });
+      if (retryDelay !== undefined) {
+        try {
+          const retryJob = { ...job, attemptNumber: job.attemptNumber + 1 };
+          await this.redis.markRetry(job.jobId, retryJob.attemptNumber);
+          await this.queue.scheduleRetry(retryJob, retryDelay, sanitizedMessage);
+          await this.prisma.listingPublication.update({ where: { id: publication.id }, data: { status: PublicationStatus.QUEUED, lastError: sanitizedMessage } });
+          await this.listingStatus.syncFromPublications(publication.listingId);
+          return;
+        } catch (queueError) {
+          await this.redis.releaseJob(job.jobId);
+          const queueMessage = safePublishingError(queueError);
+          await this.prisma.listingPublication.update({ where: { id: publication.id }, data: { status: PublicationStatus.FAILED, lastError: queueMessage } });
+          await this.listingStatus.syncFromPublications(publication.listingId);
+          throw queueError;
+        }
+      }
+      await this.queue.deadLetter(job, sanitizedMessage).catch(() => undefined);
+      await this.prisma.listingPublication.update({ where: { id: publication.id }, data: { status: PublicationStatus.FAILED, lastError: sanitizedMessage } });
+      await this.listingStatus.syncFromPublications(publication.listingId);
     }
   }
+}
+
+function retryDelayFor(error: unknown, attemptNumber: number): number | undefined {
+  if (!isTransientError(error)) return undefined;
+  return [5_000, 30_000, 120_000][attemptNumber - 1];
+}
+
+function isTransientError(error: unknown): boolean {
+  const status = statusCodeFrom(error);
+  if (status !== undefined) return status === 429 || status >= 500;
+  return /timeout|timed out|econnreset|econnrefused|enotfound|socket|network|connection/.test(safePublishingError(error).toLowerCase());
+}
+
+function statusCodeFrom(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const candidate = error as { status?: unknown; statusCode?: unknown; response?: { status?: unknown } };
+  const value = candidate.status ?? candidate.statusCode ?? candidate.response?.status;
+  return typeof value === 'number' ? value : undefined;
+}
+
+function safePublishingError(error: unknown): string {
+  return (error instanceof Error ? error.message : 'Bilinmeyen yayınlama hatası.')
+    .replace(/(authorization|bearer|token|password|credential|secret)\s*[:=]\s*[^\s,;]+/gi, '$1=[REDACTED]')
+    .slice(0, 1_000);
 }
 
 function toCanonicalListing(listing: Prisma.ListingGetPayload<{ include: typeof workerListingInclude }>): CanonicalListing {
