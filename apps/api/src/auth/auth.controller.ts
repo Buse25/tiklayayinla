@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags, ApiTooManyRequestsResponse, ApiUnauthorizedResponse, ApiUnprocessableEntityResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConflictResponse, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, ApiTooManyRequestsResponse, ApiUnauthorizedResponse, ApiUnprocessableEntityResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -21,7 +21,9 @@ export class AuthController {
   @Post('register')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Yeni kullanıcı kaydı oluşturur' })
-  @ApiOkResponse({ type: AuthResponseDto })
+  @ApiCreatedResponse({ type: AuthResponseDto, description: 'Kullanıcı ve varsa kurumsal üyeliği oluşturuldu.' })
+  @ApiConflictResponse({ description: 'E-posta adresi zaten kullanılıyor.' })
+  @ApiUnprocessableEntityResponse({ description: 'Geçersiz kullanıcı veya organizasyon alanı.' })
   @ApiUnprocessableEntityResponse({ description: 'Geçersiz e-posta veya parola' })
   @ApiTooManyRequestsResponse({ description: 'Bir dakika içinde en fazla 5 kayıt isteği gönderilebilir.' })
   async register(@Body() dto: RegisterDto): Promise<AuthResponseDto> { return this.authService.register(dto); }

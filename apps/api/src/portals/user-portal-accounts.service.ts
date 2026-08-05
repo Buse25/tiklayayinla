@@ -1,18 +1,19 @@
 import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { ConnectionStatus, Prisma } from '@prisma/client';
+import { AuditAction, AuditEntityType, ConnectionStatus, Prisma } from '@prisma/client';
 import { AdapterRegistry } from '../publishing/adapter.registry';
 import { PrismaService } from '../prisma/prisma.service';
 import { CredentialEncryptionService } from './credential-encryption.service';
 import { CreateUserPortalAccountDto } from './dto/create-user-portal-account.dto';
 import { UpdateUserPortalAccountDto } from './dto/update-user-portal-account.dto';
 import { PortalConnectionTestResponseDto, UserPortalAccountResponseDto } from './dto/user-portal-account-response.dto';
+import { AuditService } from '../audit/audit.service';
 
 const accountInclude = { portal: { select: { id: true, code: true, name: true, adapterKey: true, credentialSchema: true } } } satisfies Prisma.UserPortalAccountInclude;
 type AccountWithPortal = Prisma.UserPortalAccountGetPayload<{ include: typeof accountInclude }>;
 
 @Injectable()
 export class UserPortalAccountsService {
-  constructor(private readonly prisma: PrismaService, private readonly encryption: CredentialEncryptionService, private readonly adapters: AdapterRegistry) {}
+  constructor(private readonly prisma: PrismaService, private readonly encryption: CredentialEncryptionService, private readonly adapters: AdapterRegistry, private readonly audit: AuditService) {}
 
   async create(userId: string, dto: CreateUserPortalAccountDto): Promise<UserPortalAccountResponseDto> {
     const portal = await this.prisma.portal.findFirst({ where: { code: dto.portalCode, isActive: true } });
@@ -20,7 +21,9 @@ export class UserPortalAccountsService {
     validateCredentials(dto.credentials, portal.credentialSchema);
     try {
       const account = await this.prisma.userPortalAccount.create({ data: { userId, portalId: portal.id, credentialsEncrypted: this.encryption.encrypt(dto.credentials), connectionStatus: ConnectionStatus.NOT_TESTED }, include: accountInclude });
-      return toResponse(account);
+      const response = toResponse(account);
+      await this.audit.log({ actorUserId: userId, action: AuditAction.PORTAL_ACCOUNT_CREATED, entityType: AuditEntityType.PORTAL_ACCOUNT, entityId: response.id, changes: { portalCode: response.portal.code } });
+      return response;
     } catch (error) {
       if (isUniqueViolation(error)) throw new ConflictException('Bu portal için zaten bir hesabınız var.');
       throw error;
@@ -35,10 +38,16 @@ export class UserPortalAccountsService {
     const existing = await this.getOwned(userId, id);
     if (dto.credentials) validateCredentials(dto.credentials, existing.portal.credentialSchema);
     const account = await this.prisma.userPortalAccount.update({ where: { id }, data: { ...(dto.credentials && { credentialsEncrypted: this.encryption.encrypt(dto.credentials), connectionStatus: ConnectionStatus.NOT_TESTED, lastCheckedAt: null, lastError: null }) }, include: accountInclude });
-    return toResponse(account);
+    const response = toResponse(account);
+    if (dto.credentials) await this.audit.log({ actorUserId: userId, action: AuditAction.PORTAL_ACCOUNT_UPDATED, entityType: AuditEntityType.PORTAL_ACCOUNT, entityId: id, changes: { credentialsUpdated: true, connectionStatus: response.connectionStatus } });
+    return response;
   }
 
-  async remove(userId: string, id: string): Promise<void> { await this.getOwned(userId, id); await this.prisma.userPortalAccount.delete({ where: { id } }); }
+  async remove(userId: string, id: string): Promise<void> {
+    await this.getOwned(userId, id);
+    await this.prisma.userPortalAccount.delete({ where: { id } });
+    await this.audit.log({ actorUserId: userId, action: AuditAction.PORTAL_ACCOUNT_DELETED, entityType: AuditEntityType.PORTAL_ACCOUNT, entityId: id });
+  }
 
   async testConnection(userId: string, id: string): Promise<PortalConnectionTestResponseDto> {
     const account = await this.getOwned(userId, id);
@@ -50,12 +59,16 @@ export class UserPortalAccountsService {
       this.adapters.get(account.portal.code);
       validateMockCredentials(account.portal.code, credentials);
       await this.prisma.userPortalAccount.update({ where: { id }, data: { connectionStatus: ConnectionStatus.CONNECTED, lastCheckedAt: checkedAt, lastError: null } });
-      return { connected: true, connectionStatus: ConnectionStatus.CONNECTED, checkedAt };
+      const response = { connected: true, connectionStatus: ConnectionStatus.CONNECTED, checkedAt };
+      await this.audit.log({ actorUserId: userId, action: AuditAction.PORTAL_ACCOUNT_CONNECTION_TESTED, entityType: AuditEntityType.PORTAL_ACCOUNT, entityId: id, changes: { connected: true, connectionStatus: response.connectionStatus } });
+      return response;
     } catch (error) {
       if (error instanceof UnprocessableEntityException) throw error;
       const lastError = error instanceof Error ? error.message : 'Portal bağlantısı doğrulanamadı.';
       await this.prisma.userPortalAccount.update({ where: { id }, data: { connectionStatus: ConnectionStatus.FAILED, lastCheckedAt: checkedAt, lastError } });
-      return { connected: false, connectionStatus: ConnectionStatus.FAILED, checkedAt, lastError };
+      const response = { connected: false, connectionStatus: ConnectionStatus.FAILED, checkedAt, lastError };
+      await this.audit.log({ actorUserId: userId, action: AuditAction.PORTAL_ACCOUNT_CONNECTION_TESTED, entityType: AuditEntityType.PORTAL_ACCOUNT, entityId: id, changes: { connected: false, connectionStatus: response.connectionStatus } });
+      return response;
     }
   }
 

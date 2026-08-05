@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiConflictResponse, ApiCreatedResponse, ApiNoContentResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse, ApiUnprocessableEntityResponse } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAccessGuard } from '../auth/guards/jwt-access.guard';
@@ -39,31 +39,19 @@ export class ListingsController {
   @ApiOperation({ summary: 'Sahibi olunan ilanın medya ve portal yayın durumlarıyla detayını döndürür' })
   @ApiOkResponse({ type: ListingResponseDto })
   @ApiNotFoundResponse({ description: 'İlan yok veya başka bir kullanıcıya ait' })
-  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) { return this.listings.findOne(user.id, id); }
+  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string) { return this.listings.findOne(user.id, id); }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Sahibi olunan ilanı kısmi olarak günceller' })
   @ApiOkResponse({ type: UpdateListingResponseDto })
   @ApiNotFoundResponse() @ApiUnprocessableEntityResponse() @ApiConflictResponse({ description: 'PUBLISHING ilan güncellenemez.' })
-  update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateListingDto) { return this.listings.update(user.id, id, dto); }
+  update(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Body() dto: UpdateListingDto) { return this.listings.update(user.id, id, dto); }
 
   @Patch(':id/status')
   @ApiOperation({ summary: 'İlanı arşivler veya arşivden taslağa geri alır' })
   @ApiOkResponse({ type: ListingResponseDto })
   @ApiConflictResponse()
-  updateStatus(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateListingStatusDto) { return this.listings.updateStatus(user.id, id, dto); }
-
-  @Post(':id/publish')
-  @ApiOperation({ summary: 'İlanı seçilen bağlı portal hesaplarına yayın için kuyruğa alır' })
-  @ApiOkResponse({ description: 'Yayın işleri RabbitMQ kuyruğuna gönderildi.' })
-  @ApiNotFoundResponse() @ApiConflictResponse() @ApiUnprocessableEntityResponse()
-  publish(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: PublishListingDto) { return this.publishing.requestPublish(user.id, id, dto); }
-
-  @Post(':id/republish')
-  @ApiOperation({ summary: 'Güncelleme gerektiren veya başarısız portal yayınlarını yeniden kuyruğa alır' })
-  @ApiOkResponse({ description: 'Yeniden yayın işleri RabbitMQ kuyruğuna gönderildi.' })
-  @ApiNotFoundResponse() @ApiConflictResponse() @ApiUnprocessableEntityResponse()
-  republish(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: RepublishListingDto) { return this.publishing.requestRepublish(user.id, id, dto); }
+  updateStatus(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Body() dto: UpdateListingStatusDto) { return this.listings.updateStatus(user.id, id, dto); }
 
   @Post('bulk/status')
   @ApiOperation({ summary: 'Birden fazla ilana status geçişi uygular' })
@@ -83,15 +71,27 @@ export class ListingsController {
   @ApiUnprocessableEntityResponse()
   bulkRepublish(@CurrentUser() user: AuthenticatedUser, @Body() dto: BulkRepublishListingsDto) { return this.bulk.republish(user.id, dto.listingIds); }
 
+  @Post(':id/publish')
+  @ApiOperation({ summary: 'İlanı seçilen bağlı portal hesaplarına yayın için kuyruğa alır' })
+  @ApiOkResponse({ description: 'Yayın işleri RabbitMQ kuyruğuna gönderildi.' })
+  @ApiNotFoundResponse() @ApiConflictResponse() @ApiUnprocessableEntityResponse()
+  publish(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Body() dto: PublishListingDto) { return this.publishing.requestPublish(user.id, id, dto); }
+
+  @Post(':id/republish')
+  @ApiOperation({ summary: 'Güncelleme gerektiren veya başarısız portal yayınlarını yeniden kuyruğa alır' })
+  @ApiOkResponse({ description: 'Yeniden yayın işleri RabbitMQ kuyruğuna gönderildi.' })
+  @ApiNotFoundResponse() @ApiConflictResponse() @ApiUnprocessableEntityResponse()
+  republish(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Body() dto: RepublishListingDto) { return this.publishing.requestRepublish(user.id, id, dto); }
+
   @Get(':id/publications')
   @ApiOperation({ summary: 'İlanın portal yayın durumlarını ve son denemelerini döndürür' })
   @ApiOkResponse({ type: [ListingPublicationResponseDto] })
   @ApiNotFoundResponse()
-  publications(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) { return this.publishing.getPublications(user.id, id); }
+  publications(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string) { return this.publishing.getPublications(user.id, id); }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Taslak veya arşiv ilanını kalıcı olarak siler' })
   @ApiNoContentResponse() @ApiNotFoundResponse() @ApiConflictResponse()
-  async remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<void> { await this.listings.remove(user.id, id); }
+  async remove(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string): Promise<void> { await this.listings.remove(user.id, id); }
 }

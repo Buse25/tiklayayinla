@@ -25,8 +25,8 @@ describe('Listings CRUD (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
     const [owner, other] = await Promise.all([
-      prisma.user.create({ data: { email: `listings-owner-${testSuffix}@example.test`, passwordHash: 'test', firstName: 'Owner', lastName: 'Test', role: UserRole.AGENT, status: UserStatus.ACTIVE } }),
-      prisma.user.create({ data: { email: `listings-other-${testSuffix}@example.test`, passwordHash: 'test', firstName: 'Other', lastName: 'Test', role: UserRole.AGENT, status: UserStatus.ACTIVE } }),
+      prisma.user.create({ data: { email: `listings-owner-${testSuffix}@example.test`, passwordHash: 'test', firstName: 'Owner', lastName: 'Test', role: UserRole.USER, status: UserStatus.ACTIVE } }),
+      prisma.user.create({ data: { email: `listings-other-${testSuffix}@example.test`, passwordHash: 'test', firstName: 'Other', lastName: 'Test', role: UserRole.USER, status: UserStatus.ACTIVE } }),
     ]);
     ownerId = owner.id; otherUserId = other.id;
     const jwt = app.get(JwtService);

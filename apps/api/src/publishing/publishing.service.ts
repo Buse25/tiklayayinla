@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, Logger, NotFoundException, OnModuleInit, UnprocessableEntityException } from '@nestjs/common';
-import { AttemptStatus, ConnectionStatus, Prisma, PublicationAction, PublicationStatus } from '@prisma/client';
+import { AttemptStatus, AuditAction, AuditEntityType, ConnectionStatus, Prisma, PublicationAction, PublicationStatus } from '@prisma/client';
 import type { CanonicalListing, PortalCode } from '@tiklayayinla/shared-types';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,6 +8,7 @@ import { AdapterRegistry } from './adapter.registry';
 import { RabbitMqService } from './rabbitmq.service';
 import { RedisService } from '../redis/redis.service';
 import type { PublishListingJob } from './publishing.types';
+import { AuditService } from '../audit/audit.service';
 
 type PublishRequest = { portalAccountIds: string[] };
 type RepublishRequest = { publicationIds: string[] };
@@ -28,6 +29,7 @@ export class PublishingService implements OnModuleInit {
     private readonly adapters: AdapterRegistry,
     private readonly listingStatus: ListingStatusService,
     private readonly redis: RedisService,
+    private readonly audit: AuditService,
   ) {}
 
   async onModuleInit() {
@@ -98,6 +100,8 @@ export class PublishingService implements OnModuleInit {
 
     await this.listingStatus.markPublishing(listingId);
 
+    await this.audit.log({ actorUserId: userId, action: AuditAction.LISTING_PUBLISHED, entityType: AuditEntityType.LISTING, entityId: listingId, changes: { portalAccountCount: accountIds.length, jobsCreated: queuedJobCount } });
+
     return {
       accepted: true,
       listingId,
@@ -150,6 +154,7 @@ export class PublishingService implements OnModuleInit {
       throw error;
     }
 
+    await this.audit.log({ actorUserId: userId, action: AuditAction.LISTING_REPUBLISHED, entityType: AuditEntityType.LISTING, entityId: listingId, changes: { publicationCount: publications.length, jobsCreated: queuedJobCount } });
     return { accepted: true, listingId, queuedJobCount, publications: publications.map((publication) => ({ id: publication.id, portalId: publication.portalId, portalName: publication.portal.name, status: PublicationStatus.QUEUED })) };
   }
 
@@ -281,7 +286,7 @@ function toCanonicalListing(listing: Prisma.ListingGetPayload<{ include: typeof 
     propertyType: listing.propertyType,
     images: listing.media.map((media) => ({ id: media.id, url: media.url, sortOrder: media.sortOrder, altText: media.originalName ?? undefined })),
     contact: { name: `${listing.owner.firstName} ${listing.owner.lastName}`.trim(), phone: '', email: listing.owner.email },
-    owner: { id: listing.owner.id, type: listing.owner.role === 'AGENCY_OWNER' ? 'AGENCY' : 'AGENT', displayName: `${listing.owner.firstName} ${listing.owner.lastName}`.trim() },
+    owner: { id: listing.owner.id, type: 'AGENT', displayName: `${listing.owner.firstName} ${listing.owner.lastName}`.trim() },
     status: listing.status,
     createdAt: listing.createdAt.toISOString(),
     updatedAt: listing.updatedAt.toISOString(),

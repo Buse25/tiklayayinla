@@ -81,6 +81,11 @@ export class RabbitMqService implements OnModuleInit, OnModuleDestroy {
       channel.on('error', () => this.handleDisconnect());
       channel.on('close', () => this.handleDisconnect());
       await this.assertTopology(channel);
+      if (this.stopping) {
+        await channel.close().catch(() => undefined);
+        await connection.close().catch(() => undefined);
+        return;
+      }
       this.connection = connection;
       this.channel = channel;
       this.retryDelayMs = 2_000;
@@ -135,8 +140,13 @@ export class RabbitMqService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     this.stopping = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    await this.channel?.close().catch(() => undefined);
-    await this.connection?.close().catch(() => undefined);
+    const channel = this.channel;
+    const connection = this.connection;
+    this.channel = undefined;
+    this.connection = undefined;
+    this.consumerTag = undefined;
+    await channel?.close().catch(() => undefined);
+    await connection?.close().catch(() => undefined);
   }
 }
 

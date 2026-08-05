@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -13,6 +13,8 @@ import { StorageModule } from './storage/storage.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthModule } from './health/health.module';
 import { RedisModule } from './redis/redis.module';
+import { AuditModule } from './audit/audit.module';
+import { AuditContextMiddleware } from './audit/audit-context.middleware';
 
 @Module({
   imports: [
@@ -32,8 +34,12 @@ import { RedisModule } from './redis/redis.module';
       validationOptions: { abortEarly: false },
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
-    PrismaModule, RedisModule, StorageModule, AuthModule, UsersModule, ListingsModule, PortalsModule, PublishingModule, DashboardModule, HealthModule,
+    PrismaModule, AuditModule, RedisModule, StorageModule, AuthModule, UsersModule, ListingsModule, PortalsModule, PublishingModule, DashboardModule, HealthModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(AuditContextMiddleware).forRoutes('*');
+  }
+}

@@ -9,8 +9,29 @@ datasource db {
 
 enum UserRole {
   ADMIN
-  AGENCY_OWNER
-  AGENT
+  USER
+}
+
+enum OrganizationType {
+  REAL_ESTATE_AGENCY
+  AUTO_DEALER
+  OTHER
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  PASSIVE
+}
+
+enum OrganizationRole {
+  OWNER
+  MANAGER
+  MEMBER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  PASSIVE
 }
 
 enum UserStatus {
@@ -91,6 +112,32 @@ enum AttemptStatus {
   STARTED
   SUCCEEDED
   FAILED
+}
+
+enum AuditAction {
+  LISTING_CREATED
+  LISTING_UPDATED
+  LISTING_DELETED
+  LISTING_ARCHIVED
+  LISTING_RESTORED
+  LISTING_PUBLISHED
+  LISTING_REPUBLISHED
+  PORTAL_ACCOUNT_CREATED
+  PORTAL_ACCOUNT_UPDATED
+  PORTAL_ACCOUNT_DELETED
+  PORTAL_ACCOUNT_CONNECTION_TESTED
+  USER_PROFILE_UPDATED
+  IMPORT_CONFIRMED
+  ORGANIZATION_CREATED
+  ORGANIZATION_MEMBERSHIP_CREATED
+}
+
+enum AuditEntityType {
+  LISTING
+  PORTAL_ACCOUNT
+  USER
+  IMPORT_BATCH
+  ORGANIZATION
 }
 
 enum FeatureCategory {
@@ -185,7 +232,7 @@ model User {
   firstName     String
   lastName      String
   phone         String?
-  role          UserRole       @default(AGENT)
+  role          UserRole       @default(USER)
   status        UserStatus     @default(ACTIVE)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -193,6 +240,38 @@ model User {
   listings      Listing[]
   portalAccounts UserPortalAccount[]
   refreshTokens RefreshToken[]
+  organizationMemberships OrganizationMembership[]
+}
+
+model Organization {
+  id          String                   @id @default(uuid()) @db.Uuid
+  name        String
+  type        OrganizationType
+  country     String
+  city        String
+  district    String
+  address     String
+  phone       String?
+  taxNumber   String?
+  status      OrganizationStatus       @default(ACTIVE)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  memberships OrganizationMembership[]
+}
+
+model OrganizationMembership {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  userId         String           @db.Uuid
+  role           OrganizationRole @default(MEMBER)
+  status         MembershipStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId, status])
 }
 
 model RefreshToken {
@@ -205,6 +284,22 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@index([userId, revokedAt])
   @@index([expiresAt])
+}
+
+model AuditLog {
+  id          String          @id @default(uuid()) @db.Uuid
+  actorUserId String          @db.Uuid
+  action      AuditAction
+  entityType  AuditEntityType
+  entityId    String          @db.Uuid
+  changes     Json?
+  ipAddress   String?         @db.VarChar(64)
+  userAgent   String?         @db.VarChar(512)
+  createdAt   DateTime        @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([action, createdAt])
 }
 
 model Plan {

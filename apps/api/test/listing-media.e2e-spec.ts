@@ -30,8 +30,8 @@ describe('Listing media (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
     const [owner, other] = await Promise.all([
-      prisma.user.create({ data: { email: `media-owner-${suffix}@example.test`, passwordHash: 'test', firstName: 'Media', lastName: 'Owner', role: UserRole.AGENT, status: UserStatus.ACTIVE } }),
-      prisma.user.create({ data: { email: `media-other-${suffix}@example.test`, passwordHash: 'test', firstName: 'Media', lastName: 'Other', role: UserRole.AGENT, status: UserStatus.ACTIVE } }),
+      prisma.user.create({ data: { email: `media-owner-${suffix}@example.test`, passwordHash: 'test', firstName: 'Media', lastName: 'Owner', role: UserRole.USER, status: UserStatus.ACTIVE } }),
+      prisma.user.create({ data: { email: `media-other-${suffix}@example.test`, passwordHash: 'test', firstName: 'Media', lastName: 'Other', role: UserRole.USER, status: UserStatus.ACTIVE } }),
     ]);
     ownerId = owner.id; otherUserId = other.id;
     const [listing, otherListing] = await Promise.all([createListing(ownerId), createListing(otherUserId)]);

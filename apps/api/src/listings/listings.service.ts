@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { FeatureCategory, Listing, ListingStatus, Prisma, PublicationStatus } from '@prisma/client';
+import { AuditAction, AuditEntityType, FeatureCategory, Listing, ListingStatus, Prisma, PublicationStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateListingDto } from './dto/create-listing.dto';
@@ -9,6 +9,7 @@ import { ResidentialDetailsDto } from './dto/residential-details.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { UpdateListingStatusDto } from './dto/update-listing-status.dto';
 import { UpdateListingResponseDto } from './dto/update-listing-response.dto';
+import { AuditService } from '../audit/audit.service';
 
 const featureFields = [
   ['facades', FeatureCategory.FACADE], ['interiorFeatures', FeatureCategory.INTERIOR], ['exteriorFeatures', FeatureCategory.EXTERIOR],
@@ -27,7 +28,7 @@ type ListingDetail = Prisma.ListingGetPayload<{ include: typeof detailInclude }>
 
 @Injectable()
 export class ListingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
 
   async create(ownerId: string, dto: CreateListingDto): Promise<ListingResponseDto> {
     const selections = await this.resolveFeatures(dto);
@@ -37,7 +38,9 @@ export class ListingsService {
       await this.createFeatureRelations(tx, created.id, selections);
       return tx.listing.findUniqueOrThrow({ where: { id: created.id }, include: detailInclude });
     });
-    return toResponse(listing);
+    const response = toResponse(listing);
+    await this.audit.log({ actorUserId: ownerId, action: AuditAction.LISTING_CREATED, entityType: AuditEntityType.LISTING, entityId: response.id, changes: { fields: ['title', 'description', 'price', 'currency', 'listingType', 'propertyType', 'city', 'district', 'address'] } });
+    return response;
   }
 
   async findAll(ownerId: string, query: ListListingsQueryDto): Promise<ListingsPageResponseDto> {
@@ -73,7 +76,17 @@ export class ListingsService {
           : 0;
         return { listing: await tx.listing.findUniqueOrThrow({ where: { id }, include: detailInclude }), affectedPublications };
       });
-      return { ...toResponse(result.listing), publicationSync: { required: result.affectedPublications > 0, affectedPublications: result.affectedPublications } };
+      const response = { ...toResponse(result.listing), publicationSync: { required: result.affectedPublications > 0, affectedPublications: result.affectedPublications } };
+      if (changed) {
+        await this.audit.log({
+          actorUserId: ownerId,
+          action: AuditAction.LISTING_UPDATED,
+          entityType: AuditEntityType.LISTING,
+          entityId: id,
+          changes: { changedFields: [...(mainChanged ? Object.keys(listingData) : []), ...(residentialChanged ? Object.keys(residentialData ?? {}).map((key) => `residentialDetails.${key}`) : []), ...changedFeatureCategories.map(([, category]) => `features.${category}`)] },
+        });
+      }
+      return response;
     } catch (error) { throw this.toKnownException(error); }
   }
 
@@ -84,7 +97,9 @@ export class ListingsService {
       || (listing.status === ListingStatus.ARCHIVED && dto.status === ListingStatus.DRAFT);
     if (!allowed) throw new ConflictException('Bu ilan için istenen status geçişine izin verilmiyor.');
     await this.prisma.listing.update({ where: { id }, data: { status: dto.status } });
-    return this.findOne(ownerId, id);
+    const response = await this.findOne(ownerId, id);
+    await this.audit.log({ actorUserId: ownerId, action: dto.status === ListingStatus.ARCHIVED ? AuditAction.LISTING_ARCHIVED : AuditAction.LISTING_RESTORED, entityType: AuditEntityType.LISTING, entityId: id, changes: { from: listing.status, to: dto.status } });
+    return response;
   }
 
   async remove(ownerId: string, id: string): Promise<void> {
@@ -93,7 +108,10 @@ export class ListingsService {
     if (listing.status === ListingStatus.PUBLISHING || listing.status === ListingStatus.ACTIVE) throw new ConflictException('Yayınlanan veya yayınlanmakta olan ilan silinemez.');
     const activePublication = await this.prisma.listingPublication.findFirst({ where: { listingId: id, status: { in: [PublicationStatus.PENDING, PublicationStatus.QUEUED, PublicationStatus.PROCESSING, PublicationStatus.PUBLISHED] } }, select: { id: true } });
     if (activePublication) throw new ConflictException('Aktif veya yayınlanmış portal kaydı bulunan ilan silinemez.');
-    try { await this.prisma.listing.delete({ where: { id } }); } catch (error) { throw this.toKnownException(error); }
+    try {
+      await this.prisma.listing.delete({ where: { id } });
+      await this.audit.log({ actorUserId: ownerId, action: AuditAction.LISTING_DELETED, entityType: AuditEntityType.LISTING, entityId: id, changes: { status: listing.status } });
+    } catch (error) { throw this.toKnownException(error); }
   }
 
   private async resolveFeatures(dto: Partial<CreateListingDto>): Promise<FeatureSelections> {

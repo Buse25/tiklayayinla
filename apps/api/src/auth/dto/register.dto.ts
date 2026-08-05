@@ -1,6 +1,8 @@
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, Length, MaxLength, MinLength, ValidateNested } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { RegisterOrganizationDto } from './register-organization.dto';
 
 export class RegisterDto {
   @ApiProperty({ example: 'ayse@example.com' })
@@ -18,13 +20,26 @@ export class RegisterDto {
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   @IsNotEmpty()
-  @MaxLength(100)
+  @Length(2, 50)
   firstName!: string;
 
   @ApiProperty({ example: 'Yılmaz' })
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   @IsNotEmpty()
-  @MaxLength(100)
+  @Length(2, 50)
   lastName!: string;
+
+  @ApiPropertyOptional({ example: '+905551112233', nullable: true, maxLength: 30 })
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? (value.trim() || null) : value)
+  @IsString()
+  @MaxLength(30)
+  phone?: string | null;
+
+  @ApiPropertyOptional({ type: RegisterOrganizationDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RegisterOrganizationDto)
+  organization?: RegisterOrganizationDto;
 }

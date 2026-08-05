@@ -1,16 +1,18 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { AuditAction, AuditEntityType } from '@prisma/client';
 import { ListingsService } from '../listings.service';
 import { CsvListingParserService } from './csv-listing-parser.service';
 import { CsvListingValidatorService, type ValidImportRow } from './csv-listing-validator.service';
 import type { ListingImportConfirmResponseDto, ListingImportErrorDto, ListingImportPreviewResponseDto } from './dto/listing-import.dto';
+import { AuditService } from '../../audit/audit.service';
 
 type Preview = { userId: string; expiresAt: number; totalRows: number; validRows: ValidImportRow[]; invalidRows: number; duplicateRows: number; errors: ListingImportErrorDto[] };
 
 @Injectable()
 export class ListingImportService {
   private readonly previews = new Map<string, Preview>();
-  constructor(private readonly parser: CsvListingParserService, private readonly validator: CsvListingValidatorService, private readonly listings: ListingsService) {}
+  constructor(private readonly parser: CsvListingParserService, private readonly validator: CsvListingValidatorService, private readonly listings: ListingsService, private readonly audit: AuditService) {}
 
   async preview(userId: string, file: Express.Multer.File): Promise<ListingImportPreviewResponseDto> {
     this.clearExpired();
@@ -40,12 +42,14 @@ export class ListingImportService {
     for (let offset = 0; offset < preview.validRows.length; offset += 100) {
       const batch = preview.validRows.slice(offset, offset + 100);
       const results = await Promise.allSettled(batch.map(async (row) => ({ row: row.row, listing: await this.listings.create(userId, row.dto) })));
-      for (const result of results) {
+      for (const [index, result] of results.entries()) {
         if (result.status === 'fulfilled') createdListings.push({ row: result.value.row, id: result.value.listing.id, listingNo: result.value.listing.listingNo });
-        else errors.push({ row: batch[results.indexOf(result)].row, column: 'row', code: 'CREATE_FAILED', message: 'İlan oluşturulamadı.', value: null });
+        else errors.push(createFailureError(batch[index].row, result.reason));
       }
     }
-    return { summary: { totalRows: preview.totalRows, createdRows: createdListings.length, failedRows: errors.length, skippedRows: preview.totalRows - preview.validRows.length }, createdListings, errors: errors.slice(0, 200) };
+    const response = { summary: { totalRows: preview.totalRows, createdRows: createdListings.length, failedRows: errors.length, skippedRows: preview.totalRows - preview.validRows.length }, createdListings, errors: errors.slice(0, 200) };
+    if (createdListings.length) await this.audit.log({ actorUserId: userId, action: AuditAction.IMPORT_CONFIRMED, entityType: AuditEntityType.IMPORT_BATCH, entityId: randomUUID(), changes: { createdRows: response.summary.createdRows, failedRows: response.summary.failedRows, skippedRows: response.summary.skippedRows } });
+    return response;
   }
 
   template(): string {
@@ -58,3 +62,16 @@ export class ListingImportService {
 }
 
 function safeCsv(value: string): string { const safe = /^[=+\-@]/.test(value) ? `'${value}` : value; return /[;"\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe; }
+function createFailureError(row: number, reason: unknown): ListingImportErrorDto {
+  if (reason instanceof HttpException) {
+    const status = reason.getStatus();
+    const response = reason.getResponse();
+    const message = typeof response === 'object' && response !== null && 'message' in response ? (response as { message?: unknown }).message : reason.message;
+    return { row, column: 'row', code: status === 422 ? 'CREATE_VALIDATION_FAILED' : 'CREATE_FAILED', message: safeMessage(message), value: null };
+  }
+  return { row, column: 'row', code: 'CREATE_FAILED', message: 'İlan oluşturulamadı.', value: null };
+}
+function safeMessage(message: unknown): string {
+  if (Array.isArray(message)) return message.filter((item) => typeof item === 'string').join(' ') || 'İlan oluşturulamadı.';
+  return typeof message === 'string' && message ? message : 'İlan oluşturulamadı.';
+}
