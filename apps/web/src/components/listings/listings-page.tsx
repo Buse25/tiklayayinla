@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { authenticatedFetch } from '../../lib/api-client';
 import { canUsePropertyListings, sectorRestrictionMessage, type OrganizationType } from '../../lib/sector';
+import { AppShell } from '../layout/app-shell';
+
 
 type ListingMedia = { id: string; url: string; sortOrder: number; isCover?: boolean };
 type ListingStatus = 'DRAFT' | 'PUBLISHING' | 'ACTIVE' | 'ARCHIVED';
@@ -81,7 +83,7 @@ export function ListingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const [organizationType, setOrganizationType] = useState<OrganizationType>(undefined);
   const sectorAllowed = canUsePropertyListings(organizationType);
 
@@ -91,15 +93,7 @@ export function ListingsPage() {
   const listingLookup = useMemo(() => new Map(visibleListings.map((listing) => [listing.id, listing])), [visibleListings]);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
 
-  async function logout() {
-    if (isLoggingOut) return;
-    setIsLoggingOut(true);
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } finally {
-      window.location.assign('/login');
-    }
-  }
+
 
   useEffect(() => {
     let active = true;
@@ -204,8 +198,8 @@ export function ListingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-7xl">
+    <AppShell>
+      <div className="p-md max-w-[1600px] mx-auto text-slate-900">
         <header className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-sm font-semibold text-teal-700">PORTFÖY</p>
@@ -213,10 +207,6 @@ export function ListingsPage() {
             {!isLoading && result && <p className="mt-2 text-sm text-slate-600">Toplam {result.pagination.total} ilan</p>}
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100" href="/dashboard">Dashboard</Link>
-            <Link className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100" href="/portal-accounts">Portal Hesapları</Link>
-            {sectorAllowed && <Link className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100" href="/listings/import">Toplu İlan İçe Aktar</Link>}
-            <button className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50" disabled={isLoggingOut} onClick={() => void logout()} type="button">{isLoggingOut ? 'Çıkış yapılıyor...' : 'Çıkış yap'}</button>
             {sectorAllowed && <Link className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white transition hover:bg-teal-800" href="/listings/new">
               <span className="material-symbols-rounded text-[20px]">add_home</span>
               Yeni İlan
@@ -298,7 +288,7 @@ export function ListingsPage() {
           {result.pagination.totalPages > 1 && <nav aria-label="İlan sayfaları" className="mt-8 flex items-center justify-center gap-3"><button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40" disabled={result.pagination.page === 1 || !!busyAction} onClick={() => setPage((current) => current - 1)} type="button">Önceki</button><span className="text-sm text-slate-600">Sayfa {result.pagination.page} / {result.pagination.totalPages}</span><button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40" disabled={result.pagination.page === result.pagination.totalPages || !!busyAction} onClick={() => setPage((current) => current + 1)} type="button">Sonraki</button></nav>}
         </>}
       </div>
-    </main>
+    </AppShell>
   );
 }
 

@@ -2,8 +2,8 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import { createTransport, type Transporter } from 'nodemailer';
 import type { SentMessageInfo } from 'nodemailer';
-import { buildOrganizationApplicationApprovedMail, buildOrganizationApplicationCreatedMail, buildOrganizationApplicationRejectedMail, buildTestMail, buildVerificationCodeMail } from './mail.templates';
-import type { MailPayload, OrganizationApplicationMailData, VerificationCodeMailData } from './mail.types';
+import { buildOrganizationApplicationApprovedMail, buildOrganizationApplicationCreatedMail, buildOrganizationApplicationRejectedMail, buildPasswordChangeCodeMail, buildTestMail, buildVerificationCodeMail } from './mail.templates';
+import type { MailPayload, OrganizationApplicationMailData, PasswordChangeCodeMailData, VerificationCodeMailData } from './mail.types';
 
 @Injectable()
 export class MailService {
@@ -58,6 +58,10 @@ export class MailService {
     return this.sendMail(buildVerificationCodeMail(data));
   }
 
+  async sendPasswordChangeCode(data: PasswordChangeCodeMailData): Promise<SentMessageInfo> {
+    return this.sendMail(buildPasswordChangeCodeMail(data));
+  }
+
   async sendOrganizationApplicationCreated(data: OrganizationApplicationMailData): Promise<SentMessageInfo> {
     return this.sendMail(buildOrganizationApplicationCreatedMail(data));
   }
@@ -92,4 +96,3 @@ function normalizeRecipient(recipient: string | { email: string; name?: string }
     name: recipient.name ?? '',
   };
 }
-

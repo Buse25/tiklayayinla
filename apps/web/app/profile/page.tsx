@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { authenticatedFetch } from '../../src/lib/api-client';
 import { type OrganizationType } from '../../src/lib/sector';
 import { getOrganizationApplicationViewState, type OrganizationApplicationItem } from '../../src/lib/organization-applications';
-import { AppNavigation } from '../../src/components/navigation/app-navigation';
+import { AppShell } from '../../src/components/layout/app-shell';
 import { buildProfileOrganizationSummary, getEidsInformationMessage } from '../../src/lib/profile-summary';
 
 type Profile = {
@@ -16,6 +16,8 @@ type Profile = {
   phone: string | null;
   role: string;
   status: string;
+  createdAt: string;
+  updatedAt: string;
   organization?: {
     organizationId: string | null;
     organizationName: string | null;
@@ -83,9 +85,8 @@ export default function ProfilePage() {
       if (!profileResponse.ok) throw new Error(await safeError(profileResponse));
       if (!applicationsResponse.ok) throw new Error('Kurumsal başvuru durumu alınamadı.');
       const profileData = await profileResponse.json() as Profile;
-      const applicationData = await applicationsResponse.json() as OrganizationApplicationItem[];
       setProfile(profileData);
-      setApplications(applicationData);
+      setApplications(await applicationsResponse.json() as OrganizationApplicationItem[]);
       setForm({ firstName: profileData.firstName ?? '', lastName: profileData.lastName ?? '', phone: profileData.phone ?? '' });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Profil bilgileri alınamadı.');
@@ -117,6 +118,7 @@ export default function ProfilePage() {
       setProfile(data);
       setForm({ firstName: data.firstName ?? '', lastName: data.lastName ?? '', phone: data.phone ?? '' });
       setNotice('Profil başarıyla güncellendi.');
+      window.dispatchEvent(new Event('profile-updated'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Profil güncellenemedi.');
     } finally {
@@ -124,18 +126,28 @@ export default function ProfilePage() {
     }
   }
 
-  if (loading) return <main className="min-h-screen bg-slate-50 p-6 text-slate-900"><div className="mx-auto max-w-5xl"><div className="h-10 w-48 animate-pulse rounded bg-slate-200" /><div className="mt-8 grid gap-6 lg:grid-cols-2"><div className="h-80 animate-pulse rounded-2xl bg-slate-200" /><div className="h-80 animate-pulse rounded-2xl bg-slate-200" /></div></div></main>;
+  if (loading) return <AppShell><div className="p-md max-w-[1600px] mx-auto text-slate-900"><div className="h-10 w-48 animate-pulse rounded bg-slate-200" /><div className="mt-8 grid gap-6 lg:grid-cols-2"><div className="h-80 animate-pulse rounded-2xl bg-slate-200" /><div className="h-80 animate-pulse rounded-2xl bg-slate-200" /></div></div></AppShell>;
 
-  return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
-    <div className="mx-auto max-w-5xl">
-      <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-teal-700">PROFİL</p>
-          <h1 className="mt-1 text-3xl font-bold">Profil</h1>
-          <p className="mt-2 text-slate-600">Hesap bilgilerinizi yönetin.</p>
-        </div>
-        <AppNavigation activeHref="/profile" role={profile?.role ?? null} />
-      </header>
+  const isCorporate = !!profile?.organization?.organizationId || applications.length > 0;
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(dateStr));
+    } catch {
+      return '—';
+    }
+  };
+
+  return (
+    <AppShell>
+      <div className="p-md max-w-[1600px] mx-auto text-slate-900">
+        <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-teal-700">PROFİL</p>
+            <h1 className="mt-1 text-3xl font-bold">Profil</h1>
+            <p className="mt-2 text-slate-600">Hesap bilgilerinizi yönetin.</p>
+          </div>
+        </header>
 
       {error && <section className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><p>{error}</p><button className="mt-3 rounded-lg border border-red-300 px-3 py-2 font-semibold hover:bg-red-100" onClick={() => void load()} type="button">Tekrar dene</button></section>}
       {notice && <p className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</p>}
@@ -145,6 +157,7 @@ export default function ProfilePage() {
 
       {profile && <form onSubmit={submit}>
         <div className="grid gap-6 lg:grid-cols-2">
+          {/* Yetkili Bilgileri */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-bold">Yetkili Bilgileri</h2>
             <div className="mt-5 space-y-4">
@@ -155,29 +168,56 @@ export default function ProfilePage() {
             </div>
           </section>
 
+          {/* Hesap Bilgileri */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold">Kurumsal Bilgiler</h2>
+            <h2 className="text-xl font-bold">Hesap Bilgileri</h2>
             <dl className="mt-5 space-y-4 text-sm">
-              <div><dt className="font-semibold text-slate-500">Firma adı</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{profile.organization?.organizationName ?? 'Kurumsal bilgi yok'}</dd></div>
-              <div><dt className="font-semibold text-slate-500">Firma türü</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{profile.organization?.organizationType ? organizationTypeLabels[profile.organization.organizationType] ?? profile.organization.organizationType : '—'}</dd></div>
-              <div><dt className="font-semibold text-slate-500">Organizasyon rolü</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{profile.organization?.membershipRole ? organizationRoleLabels[profile.organization.membershipRole] ?? profile.organization.membershipRole : '—'}</dd></div>
-              <div><dt className="font-semibold text-slate-500">Üyelik durumu</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{profile.organization?.membershipStatus ? membershipStatusLabels[profile.organization.membershipStatus] ?? profile.organization.membershipStatus : '—'}</dd></div>
+              <div><dt className="font-semibold text-slate-500">Hesap Tipi</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{profile.organization?.organizationId ? 'Kurumsal Hesap' : 'Bireysel Hesap'}</dd></div>
+              <div><dt className="font-semibold text-slate-500">Sistem Rolü</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{profile.role === 'ADMIN' ? 'Yönetici (Admin)' : 'Kullanıcı (Standart)'}</dd></div>
+              <div><dt className="font-semibold text-slate-500">Kayıt Tarihi</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{formatDate(profile.createdAt)}</dd></div>
+              <div><dt className="font-semibold text-slate-500">Son Giriş</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3 text-slate-500 italic">Veri yok (Desteklenmiyor)</dd></div>
             </dl>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold">Kurumsal Hesap Özeti</h2>
-            <dl className="mt-5 space-y-4 text-sm">
-              <div><dt className="font-semibold text-slate-500">Kurumsal hesap durumu</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.accountStatus ?? '—'}</dd></div>
-              <div><dt className="font-semibold text-slate-500">Kurum adı</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.organizationName ?? '—'}</dd></div>
-              <div><dt className="font-semibold text-slate-500">Sektör</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.organizationType ?? '—'}</dd></div>
-              <div><dt className="font-semibold text-slate-500">Kurumdaki rol</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.organizationRole ?? '—'}</dd></div>
-              <div><dt className="font-semibold text-slate-500">Başvuru durumu</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.applicationStatus ?? applicationViewState.badge}</dd></div>
-              <div><dt className="font-semibold text-slate-500">Onay tarihi</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.approvalDate ?? '—'}</dd></div>
-            </dl>
-          </section>
+          {isCorporate && (
+            <>
+              {/* Kurumsal Bilgiler */}
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-bold">Kurumsal Bilgiler</h2>
+                <dl className="mt-5 space-y-4 text-sm">
+                  <div><dt className="font-semibold text-slate-500">Firma adı</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{profile.organization?.organizationName ?? 'Kurumsal bilgi yok'}</dd></div>
+                  <div><dt className="font-semibold text-slate-500">Firma türü</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{profile.organization?.organizationType ? organizationTypeLabels[profile.organization.organizationType] ?? profile.organization.organizationType : '—'}</dd></div>
+                  <div><dt className="font-semibold text-slate-500">Organizasyon rolü</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{profile.organization?.membershipRole ? organizationRoleLabels[profile.organization.membershipRole] ?? profile.organization.membershipRole : '—'}</dd></div>
+                  <div><dt className="font-semibold text-slate-500">Üyelik durumu</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{profile.organization?.membershipStatus ? membershipStatusLabels[profile.organization.membershipStatus] ?? profile.organization.membershipStatus : '—'}</dd></div>
+                </dl>
+              </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              {/* Kurumsal Hesap Özeti */}
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-bold">Kurumsal Hesap Özeti</h2>
+                <dl className="mt-5 space-y-4 text-sm">
+                  <div><dt className="font-semibold text-slate-500">Kurumsal hesap durumu</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.accountStatus ?? '—'}</dd></div>
+                  <div><dt className="font-semibold text-slate-500">Kurum adı</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.organizationName ?? '—'}</dd></div>
+                  <div><dt className="font-semibold text-slate-500">Sektör</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.organizationType ?? '—'}</dd></div>
+                  <div><dt className="font-semibold text-slate-500">Kurumdaki rol</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.organizationRole ?? '—'}</dd></div>
+                  <div><dt className="font-semibold text-slate-500">Başvuru durumu</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.applicationStatus ?? applicationViewState.badge}</dd></div>
+                  <div><dt className="font-semibold text-slate-500">Onay tarihi</dt><dd className="mt-1 rounded-lg bg-slate-50 p-3">{organizationSummary?.approvalDate ?? '—'}</dd></div>
+                  
+                  {applicationViewState.kind === 'rejected' && (
+                    <div>
+                      <dt className="font-semibold text-rose-600">Başvuru Red Nedeni</dt>
+                      <dd className="mt-1 rounded-lg bg-rose-50 border border-rose-100 p-3 text-rose-800 font-medium animate-fade-in">
+                        {applicationViewState.rejectionReason}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
+            </>
+          )}
+
+          {/* EİDS Doğrulaması */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
             <h2 className="text-xl font-bold">EİDS Doğrulaması</h2>
             <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">{getEidsInformationMessage()}</p>
           </section>
@@ -187,8 +227,9 @@ export default function ProfilePage() {
           <button className="rounded-xl bg-teal-700 px-6 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50" disabled={saving} type="submit">{saving ? 'Kaydediliyor...' : 'Kaydet'}</button>
         </div>
       </form>}
-    </div>
-  </main>;
+      </div>
+    </AppShell>
+  );
 }
 
 function OrganizationApplicationActionLink({ href, badge }: { href: string; badge: string }) {

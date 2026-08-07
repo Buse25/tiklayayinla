@@ -1,0 +1,48 @@
+'use client';
+
+import Link from 'next/link';
+import { FormEvent, useEffect, useState } from 'react';
+import { AppShell } from '../../src/components/layout/app-shell';
+import { authenticatedFetch } from '../../src/lib/api-client';
+
+type Profile = { email: string; firstName: string; lastName: string; phone: string | null; about: string | null; address: string | null };
+
+async function message(response: Response) { try { const data = await response.json(); return Array.isArray(data.message) ? data.message.join(' ') : data.message ?? 'İşlem tamamlanamadı.'; } catch { return 'İşlem tamamlanamadı.'; } }
+
+export default function SettingsPage() {
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', about: '', address: '' });
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [password, setPassword] = useState({ code: '', newPassword: '', confirmPassword: '' });
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteText, setDeleteText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  async function load() { const response = await authenticatedFetch('users/me'); if (!response.ok) { setError(await message(response)); return; } const data = await response.json() as Profile; setProfile(data); setForm({ firstName: data.firstName ?? '', lastName: data.lastName ?? '', phone: data.phone ?? '', about: data.about ?? '', address: data.address ?? '' }); }
+  useEffect(() => { void load(); }, []);
+
+  async function save(event: FormEvent) { event.preventDefault(); setSaving(true); setError(''); setNotice(''); const response = await authenticatedFetch('users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, phone: form.phone.trim() || null, about: form.about.trim() || null, address: form.address.trim() || null }) }); if (!response.ok) setError(await message(response)); else { const data = await response.json() as Profile; setProfile(data); setNotice('Profil bilgileriniz güncellendi.'); window.dispatchEvent(new Event('profile-updated')); } setSaving(false); }
+
+  async function requestCode() { setError(''); const response = await authenticatedFetch('users/me/password/request-code', { method: 'POST' }); if (!response.ok) setError(await message(response)); else { setCodeSent(true); setNotice('Doğrulama kodu e-posta adresinize gönderildi.'); } }
+  async function changePassword(event: FormEvent) { event.preventDefault(); setChangingPassword(true); setError(''); const response = await authenticatedFetch('users/me/password/change', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(password) }); if (!response.ok) setError(await message(response)); else { setPassword({ code: '', newPassword: '', confirmPassword: '' }); setCodeSent(false); setNotice('Şifreniz güncellendi.'); } setChangingPassword(false); }
+  async function deleteAccount() { setDeleting(true); setError(''); const response = await authenticatedFetch('users/me/delete', { method: 'POST' }); if (!response.ok) { setError(await message(response)); setDeleting(false); return; } await fetch('/api/auth/logout', { method: 'POST' }); window.location.assign('/login'); }
+
+  const input = 'mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100';
+  return <AppShell><div className="mx-auto max-w-5xl p-5 text-slate-900 sm:p-8">
+    <header className="mb-8"><p className="text-sm font-semibold tracking-wide text-teal-700">HESAP</p><h1 className="mt-1 text-3xl font-bold">Ayarlar</h1><p className="mt-2 text-slate-600">Profilinizi, güvenliğinizi ve hesap tercihlerinizi yönetin.</p></header>
+    {error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}{notice && <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
+    <form onSubmit={save} className="space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><h2 className="text-xl font-bold">Profil Bilgileri</h2><p className="mt-1 text-sm text-slate-500">Bu bilgiler hesabınızda ve profil alanlarında kullanılır.</p><div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <label className="text-sm font-semibold">Ad<input className={input} value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} required /></label><label className="text-sm font-semibold">Soyad<input className={input} value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} required /></label><label className="text-sm font-semibold sm:col-span-2">E-posta<input className={`${input} bg-slate-50 text-slate-500`} value={profile?.email ?? ''} readOnly /></label><label className="text-sm font-semibold">Telefon<input className={input} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></label><label className="text-sm font-semibold sm:col-span-2">Hakkımda<textarea className={input} rows={4} value={form.about} onChange={e => setForm({ ...form, about: e.target.value })} /></label><label className="text-sm font-semibold sm:col-span-2">Adres<textarea className={input} rows={3} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} /></label>
+      </div><div className="mt-5 flex justify-end"><button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50" disabled={saving}>{saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}</button></div></section>
+    </form>
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><h2 className="text-xl font-bold">Güvenlik</h2><p className="mt-1 text-sm text-slate-500">Şifre değiştirmek için kayıtlı e-posta adresinize tek kullanımlık kod gönderilir.</p>{!codeSent ? <button type="button" onClick={() => void requestCode()} className="mt-5 rounded-xl border border-teal-700 px-5 py-3 font-semibold text-teal-800 hover:bg-teal-50">Şifremi Değiştir</button> : <form onSubmit={changePassword} className="mt-5 grid gap-4 sm:grid-cols-3"><label className="text-sm font-semibold">6 haneli kod<input className={input} inputMode="numeric" maxLength={6} value={password.code} onChange={e => setPassword({ ...password, code: e.target.value })} required /></label><label className="text-sm font-semibold">Yeni şifre<input className={input} type="password" minLength={8} value={password.newPassword} onChange={e => setPassword({ ...password, newPassword: e.target.value })} required /></label><label className="text-sm font-semibold">Yeni şifre tekrar<input className={input} type="password" minLength={8} value={password.confirmPassword} onChange={e => setPassword({ ...password, confirmPassword: e.target.value })} required /></label><div className="sm:col-span-3 flex flex-wrap justify-end gap-3"><button type="button" onClick={() => void requestCode()} className="rounded-xl border border-slate-300 px-4 py-3 font-semibold">Kodu tekrar gönder</button><button disabled={changingPassword} className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white disabled:opacity-50">{changingPassword ? 'Güncelleniyor...' : 'Şifreyi Güncelle'}</button></div></form>}</section>
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><h2 className="text-xl font-bold">Yasal ve Gizlilik</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{[['/kvkk','KVKK Aydınlatma Metni'],['/privacy','Gizlilik Politikası'],['/terms','Kullanım Koşulları'],['/cookies','Çerez Politikası'],['/security','Güvenlik / Veri Güvenliği']].map(([href, label]) => <Link className="flex items-center justify-between rounded-xl border border-slate-200 p-4 font-semibold hover:border-teal-400 hover:bg-teal-50" href={href} key={href}>{label}<span aria-hidden>→</span></Link>)}</div></section>
+    <section className="mt-6 rounded-2xl border border-red-200 bg-red-50/70 p-5 sm:p-6"><h2 className="text-xl font-bold text-red-900">Tehlikeli Alan</h2><p className="mt-1 text-sm text-red-800">Hesabınızı ve hesabınıza bağlı verileri silme işlemi geri alınamaz.</p><button type="button" onClick={() => setDeleteOpen(true)} className="mt-5 rounded-xl border border-red-300 bg-white px-5 py-3 font-semibold text-red-700 hover:bg-red-100">Hesabımı Sil</button></section>
+    {deleteOpen && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"><h2 className="text-xl font-bold">Hesabınızı silmek üzeresiniz</h2><p className="mt-3 text-sm text-slate-600">Devam etmek için aşağıya <strong>HESABIMI SİL</strong> yazın.</p><input className={input} value={deleteText} onChange={e => setDeleteText(e.target.value)} autoFocus /><div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => { setDeleteOpen(false); setDeleteText(''); }} className="rounded-xl border border-slate-300 px-4 py-3 font-semibold">Vazgeç</button><button type="button" disabled={deleteText !== 'HESABIMI SİL' || deleting} onClick={() => void deleteAccount()} className="rounded-xl bg-red-700 px-4 py-3 font-semibold text-white disabled:opacity-40">{deleting ? 'Siliniyor...' : 'Hesabı Sil'}</button></div></div></div>}
+  </div></AppShell>;
+}

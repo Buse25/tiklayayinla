@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse, ApiUnprocessableEntityResponse } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAccessGuard } from '../auth/guards/jwt-access.guard';
@@ -6,6 +7,8 @@ import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.in
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { MyProfileResponseDto } from './dto/my-profile-response.dto';
 import { UsersService } from './users.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { PasswordCodeResponseDto } from './dto/password-code-response.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -29,4 +32,18 @@ export class UsersController {
   updateMe(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateMyProfileDto): Promise<MyProfileResponseDto> {
     return this.users.updateMyProfile(user.id, dto);
   }
+
+  @Post('me/password/request-code')
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @ApiOkResponse({ type: PasswordCodeResponseDto })
+  requestPasswordCode(@CurrentUser() user: AuthenticatedUser): Promise<PasswordCodeResponseDto> { return this.users.requestPasswordCode(user.id); }
+
+  @Post('me/password/change')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  changePassword(@CurrentUser() user: AuthenticatedUser, @Body() dto: ChangePasswordDto): Promise<void> { return this.users.changePassword(user.id, dto); }
+
+  @Post('me/delete')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteAccount(@CurrentUser() user: AuthenticatedUser): Promise<void> { return this.users.deleteAccount(user.id); }
 }

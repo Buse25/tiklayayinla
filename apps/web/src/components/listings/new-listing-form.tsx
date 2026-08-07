@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { AppShell } from '../layout/app-shell';
 import { FormEvent, useEffect, useState } from 'react';
 import { enumOptions, featureCategories, type FeatureCategory, type Option } from '../../data/listing-form-options';
 import { authenticatedFetch } from '../../lib/api-client';
@@ -109,7 +110,7 @@ export function NewListingForm() {
     finally { setIsSubmitting(false); }
   }
 
-  return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-10"><form className="mx-auto max-w-5xl" onSubmit={submit}>
+  return <AppShell><div className="p-md max-w-[1600px] mx-auto text-slate-900"><form className="mx-auto max-w-5xl" onSubmit={submit}>
     <header className="mb-8 flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-teal-700">YENİ PORTFÖY</p><h1 className="mt-1 text-3xl font-bold">Yeni ilan oluştur</h1><p className="mt-2 text-sm text-slate-600"><span className="text-red-600">*</span> işaretli alanlar zorunludur.</p></div><Link className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200" href="/listings">İlanlarıma dön</Link></header>
     {!sectorAllowed && <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{sectorRestrictionMessage(organizationType)}</div>}
     <ol className="mb-8 grid gap-2 sm:grid-cols-5">{steps.map((label, index) => <li className={`rounded-lg px-3 py-2 text-center text-xs font-semibold ${index === step ? 'bg-teal-700 text-white' : index < step ? 'bg-teal-100 text-teal-800' : 'bg-slate-200 text-slate-600'}`} key={label}>{index + 1}. {label}</li>)}</ol>
@@ -122,7 +123,7 @@ export function NewListingForm() {
       {step === 4 && <div className="space-y-5"><h2 className="text-xl font-bold">Kaydetmeden önce kontrol edin</h2><div className="grid gap-4 rounded-xl bg-slate-50 p-5 sm:grid-cols-2"><Preview label="Başlık" value={data.title} /><Preview label="Fiyat" value={data.price ? `${data.price} ${data.currency}` : undefined} /><Preview label="Konum" value={[data.district, data.city].filter(Boolean).join(', ')} /><Preview label="İlan tipi" value={getListingTypeLabel(data.listingType)} /></div><p className="text-sm text-slate-600">İlan taslak olarak oluşturulur. Sonraki adımda görseller ekleyebilirsiniz.</p></div>}
     </section>
     <footer className="mt-6 flex items-center justify-between"><button className="rounded-lg px-4 py-3 font-semibold text-slate-700 disabled:opacity-40" disabled={step === 0 || isSubmitting || !sectorAllowed} onClick={() => setStep((current) => current - 1)} type="button">Geri</button>{step < steps.length - 1 ? <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50" disabled={!sectorAllowed} onClick={nextStep} type="button">Devam et</button> : <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={isSubmitting || !sectorAllowed} type="submit">{isSubmitting ? 'İlan oluşturuluyor...' : 'İlanı oluştur'}</button>}</footer>
-  </form></main>;
+  </form></div></AppShell>;
 }
 
 function Field({ label, required, type = 'text', value, onChange, min }: { label: string; required?: boolean; type?: string; value: string; onChange: (value: string) => void; min?: string }) { return <label className="grid gap-2 text-sm font-semibold">{label}{required && <span className="ml-1 text-red-600">*</span>}<input className="rounded-lg border border-slate-300 px-3 py-3 font-normal outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" min={min} onChange={(event) => onChange(event.target.value)} step={type === 'number' ? 'any' : undefined} type={type} value={value} /></label>; }

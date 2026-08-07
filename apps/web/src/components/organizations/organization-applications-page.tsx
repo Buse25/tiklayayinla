@@ -5,13 +5,33 @@ import type { ReactNode } from 'react';
 import { authenticatedFetch } from '../../lib/api-client';
 import { sectorLabel, type OrganizationType } from '../../lib/sector';
 import { getLicenseNumberRequirement, getOrganizationApplicationStatusBadge, getOrganizationApplicationViewState, normalizeApplicationLicenseNumber, type OrganizationApplicationItem } from '../../lib/organization-applications';
-import { AppNavigation } from '../navigation/app-navigation';
+import { AppShell } from '../layout/app-shell';
 
 type Application = OrganizationApplicationItem;
 
+type Profile = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  role: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  organization?: {
+    organizationId: string | null;
+    organizationName: string | null;
+    organizationType: string | null;
+    membershipRole: string | null;
+    membershipStatus: string | null;
+  } | null;
+};
+
 export function OrganizationApplicationsPage() {
-  const [profile, setProfile] = useState<{ role: string } | null>(null);
+
   const [applications, setApplications] = useState<Application[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
@@ -32,23 +52,28 @@ export function OrganizationApplicationsPage() {
     licenseNumber: '',
   });
 
-  const viewState = useMemo(() => getOrganizationApplicationViewState(applications), [applications]);
+  const viewState = useMemo(() => {
+    if (profile?.organization?.membershipStatus === 'ACTIVE') {
+      return { kind: 'approved', badge: 'Onaylandı', message: 'Kurumsal hesabınız onaylandı.' } as const;
+    }
+    return getOrganizationApplicationViewState(applications);
+  }, [applications, profile]);
+
   const licenseRequirement = useMemo(() => getLicenseNumberRequirement(form.organizationType), [form.organizationType]);
 
   async function load() {
     setLoading(true);
     setError('');
     try {
-      const [profileResponse, applicationsResponse] = await Promise.all([
-        authenticatedFetch('users/me'),
+      const [applicationsResponse, profileResponse] = await Promise.all([
         authenticatedFetch('organizations/applications'),
+        authenticatedFetch('users/me'),
       ]);
-      if (!profileResponse.ok) throw new Error('Profil bilgisi alınamadı.');
-      if (!applicationsResponse.ok) throw new Error('Başvurular yüklenemedi.');
-      setProfile(await profileResponse.json());
+      if (!applicationsResponse.ok || !profileResponse.ok) throw new Error('Veriler yüklenemedi.');
       setApplications(await applicationsResponse.json());
+      setProfile(await profileResponse.json());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Başvurular yüklenemedi.');
+      setError(e instanceof Error ? e.message : 'Veriler yüklenemedi.');
     } finally {
       setLoading(false);
     }
@@ -114,16 +139,16 @@ export function OrganizationApplicationsPage() {
 
   const canOpenForm = viewState.kind === 'none' || viewState.kind === 'rejected';
 
-  return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
-    <div className="mx-auto max-w-5xl">
-      <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-teal-700">KURUMSAL HESAP</p>
-          <h1 className="mt-1 text-3xl font-bold">Kurumsal Başvuru</h1>
-          <p className="mt-2 text-sm text-slate-600">Kurumsal başvurunuzu oluşturun, onay durumunu takip edin.</p>
-        </div>
-        <AppNavigation activeHref="/organization-applications" role={profile?.role ?? null} />
-      </header>
+  return (
+    <AppShell>
+      <div className="p-md max-w-[1600px] mx-auto text-slate-900">
+        <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-teal-700">KURUMSAL HESAP</p>
+            <h1 className="mt-1 text-3xl font-bold">Kurumsal Başvuru</h1>
+            <p className="mt-2 text-sm text-slate-600">Kurumsal başvurunuzu oluşturun, onay durumunu takip edin.</p>
+          </div>
+        </header>
 
       {error && <p className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
       {notice && <p className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</p>}
@@ -163,8 +188,9 @@ export function OrganizationApplicationsPage() {
         <h2 className="text-lg font-bold">Başvurular</h2>
         {loading ? <p className="mt-4 text-sm text-slate-600">Yükleniyor...</p> : applications.length === 0 ? <p className="mt-4 text-sm text-slate-600">Henüz başvuru yok.</p> : <div className="mt-4 space-y-3">{applications.map((item) => <article className="rounded-xl bg-slate-50 p-4 text-sm" key={item.id}><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">{item.organizationName}</p><span className="rounded-full bg-white px-2 py-1 text-xs font-bold">{getOrganizationApplicationStatusBadge(item.status)}</span></div><p className="mt-2 text-slate-600">{sectorLabel(item.organizationType)} · {item.city}, {item.district}</p>{item.rejectionReason && <p className="mt-2 text-red-700">{item.rejectionReason}</p>}</article>)}</div>}
       </section>
-    </div>
-  </main>;
+      </div>
+    </AppShell>
+  );
 }
 
 function StatusPanel({ tone, title, description }: { tone: 'amber' | 'emerald' | 'rose'; title: string; description: string }) {

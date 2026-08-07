@@ -1,12 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+import { createHmac, randomInt, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { MyProfileResponseDto } from './dto/my-profile-response.dto';
 import { AuditAction, AuditEntityType, MembershipStatus, OrganizationApplicationStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { MailService } from '../mail/mail.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { PasswordCodeResponseDto } from './dto/password-code-response.dto';
 
 const profileSelect = {
-  id: true, email: true, firstName: true, lastName: true, phone: true,
+  id: true, email: true, firstName: true, lastName: true, phone: true, about: true, address: true,
   role: true, status: true, createdAt: true, updatedAt: true,
   organizationMemberships: {
     where: { status: MembershipStatus.ACTIVE },
@@ -18,7 +29,7 @@ const profileSelect = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly mail: MailService) {}
 
   async getMyProfile(userId: string): Promise<MyProfileResponseDto> {
     const profile = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: profileSelect });
@@ -40,7 +51,75 @@ export class UsersService {
     });
     return toProfileResponse(profile, latestApp?.status ?? null);
   }
+
+  async requestPasswordCode(userId: string): Promise<PasswordCodeResponseDto> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
+    const now = new Date();
+    const latest = await this.prisma.passwordChangeCode.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } });
+    if (latest && latest.resendAvailableAt > now && !latest.consumedAt && !latest.invalidatedAt) {
+      throw new HttpException(
+        {
+          statusCode: 429,
+          code: 'PASSWORD_CHANGE_CODE_RATE_LIMITED',
+          message: 'Lütfen yeni kod istemeden önce bekleyin.',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+    const expiresAt = new Date(Date.now() + 10 * 60_000);
+    const resendAvailableAt = new Date(Date.now() + 60_000);
+    const codeHash = hashCode(code);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.passwordChangeCode.updateMany({ where: { userId, consumedAt: null, invalidatedAt: null }, data: { invalidatedAt: now } });
+      await tx.passwordChangeCode.create({ data: { userId, codeHash, expiresAt, resendAvailableAt } });
+    });
+    try {
+      await this.mail.sendPasswordChangeCode({ to: user.email, code, expiresAt });
+    } catch (error) {
+      await this.prisma.passwordChangeCode.updateMany({ where: { userId, codeHash, consumedAt: null, invalidatedAt: null }, data: { invalidatedAt: new Date() } });
+      throw error;
+    }
+    return { email: maskEmail(user.email), expiresAt, resendAvailableAt };
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
+    if (dto.newPassword !== dto.confirmPassword) throw new ConflictException('Yeni şifreler eşleşmiyor.');
+    const codes = await this.prisma.passwordChangeCode.findMany({ where: { userId, consumedAt: null, invalidatedAt: null }, orderBy: { createdAt: 'desc' } });
+    const active = codes.find((item) => item.expiresAt > new Date() && item.attemptCount < item.maxAttempts);
+    if (!active) throw new UnauthorizedException('Kod geçersiz veya süresi dolmuş.');
+    const provided = hashCode(dto.code);
+    const matches = safeCompare(active.codeHash, provided);
+    if (!matches) {
+      const attemptCount = active.attemptCount + 1;
+      await this.prisma.passwordChangeCode.update({ where: { id: active.id }, data: { attemptCount, invalidatedAt: attemptCount >= active.maxAttempts ? new Date() : null } });
+      throw new UnauthorizedException('Kod geçersiz veya süresi dolmuş.');
+    }
+    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+      await tx.passwordChangeCode.update({ where: { id: active.id }, data: { consumedAt: new Date() } });
+      await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    });
+  }
+
+  async deleteAccount(userId: string): Promise<void> {
+    const owned = await this.prisma.organizationMembership.findMany({ where: { userId, role: 'OWNER', status: 'ACTIVE' }, select: { organizationId: true } });
+    for (const membership of owned) {
+      const otherMembers = await this.prisma.organizationMembership.count({ where: { organizationId: membership.organizationId, status: 'ACTIVE', userId: { not: userId } } });
+      if (otherMembers > 0) throw new ConflictException('Aktif sahibi olduğunuz organizasyonda başka üyeler bulunduğu için hesap silinemiyor.');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      for (const membership of owned) await tx.organization.delete({ where: { id: membership.organizationId } });
+      await tx.user.delete({ where: { id: userId } });
+    });
+  }
 }
+
+function hashCode(code: string): string { return createHmac('sha256', requiredEnv('JWT_ACCESS_SECRET')).update(code).digest('hex'); }
+function safeCompare(left: string, right: string): boolean { const a = Buffer.from(left, 'hex'); const b = Buffer.from(right, 'hex'); return a.length === b.length && timingSafeEqual(a, b); }
+function maskEmail(email: string): string { const [local, domain = ''] = email.split('@'); return `${local.slice(0, 1)}***${local.slice(-1)}@${domain}`; }
+function requiredEnv(name: string): string { const value = process.env[name]; if (!value) throw new Error(`${name} environment variable must be set.`); return value; }
 
 type ProfileRecord = Prisma.UserGetPayload<{ select: typeof profileSelect }>;
 

@@ -1,0 +1,3 @@
+import Link from 'next/link';
+export default function KvkkPage() { return <Legal title="KVKK Aydınlatma Metni" />; }
+function Legal({ title }: { title: string }) { return <main className="min-h-screen bg-slate-50 p-6 text-slate-900 sm:p-12"><div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"><Link href="/login" className="text-sm font-semibold text-teal-700">tiklayayinla</Link><h1 className="mt-8 text-3xl font-bold">{title}</h1><p className="mt-4 rounded-xl bg-amber-50 p-4 text-amber-900">Bu sayfa iskelet niteliğindedir. Hukuki içerik ve güncel metinler hazırlanma aşamasındadır.</p></div></main>; }

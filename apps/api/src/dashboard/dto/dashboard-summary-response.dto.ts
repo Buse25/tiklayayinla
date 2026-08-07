@@ -6,6 +6,9 @@ export class DashboardListingsSummaryDto {
   @ApiProperty() publishing!: number;
   @ApiProperty() active!: number;
   @ApiProperty() archived!: number;
+  @ApiProperty() createdToday!: number;
+  @ApiProperty() createdLast7Days!: number;
+  @ApiProperty() createdLast30Days!: number;
 }
 
 export class DashboardPortalAccountsSummaryDto {
@@ -13,6 +16,7 @@ export class DashboardPortalAccountsSummaryDto {
   @ApiProperty() connected!: number;
   @ApiProperty() failed!: number;
   @ApiProperty() notTested!: number;
+  @ApiProperty() totalActivePortals!: number;
 }
 
 export class DashboardPublicationsSummaryDto {

@@ -1,4 +1,4 @@
-import type { MailPayload, OrganizationApplicationMailData, VerificationCodeMailData } from './mail.types';
+import type { MailPayload, OrganizationApplicationMailData, PasswordChangeCodeMailData, VerificationCodeMailData } from './mail.types';
 
 const brandName = 'TıklaYayınla';
 
@@ -21,6 +21,15 @@ export function buildVerificationCodeMail(data: VerificationCodeMailData): MailP
         <p style="margin:16px 0 0">Bu kod 10 dakika geçerlidir. Kod talebi sizden gelmediyse lütfen dikkate almayın.</p>
       `,
     ),
+  };
+}
+
+export function buildPasswordChangeCodeMail(data: PasswordChangeCodeMailData): MailPayload {
+  return {
+    to: data.to,
+    subject: `${brandName} şifre değiştirme kodunuz`,
+    text: `${brandName} şifre değiştirme kodunuz\n\nDoğrulama kodunuz: ${data.code}\nBu kod 10 dakika geçerlidir.`,
+    html: baseHtml(`${brandName} şifre değiştirme kodunuz`, `<p>Şifrenizi değiştirmek için doğrulama kodunuz:</p><div style="display:inline-block;padding:16px 20px;border:1px solid #d1d5db;border-radius:14px;font-size:28px;font-weight:700;letter-spacing:0.2em;background:#f8fafc">${data.code}</div><p>Bu kod 10 dakika geçerlidir.</p>`),
   };
 }
 
@@ -109,4 +118,3 @@ function escapeHtml(value: string): string {
 function minutesBetween(later: Date, earlier: Date): number {
   return Math.max(1, Math.round((later.getTime() - earlier.getTime()) / 60_000));
 }
-

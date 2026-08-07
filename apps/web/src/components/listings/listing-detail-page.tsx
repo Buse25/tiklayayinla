@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { AppShell } from '../layout/app-shell';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authenticatedFetch } from '../../lib/api-client';
 import { translateAuditAction } from '../../lib/audit-logs';
@@ -297,8 +298,8 @@ export function ListingDetailPage() {
     setSelectedPublicationIds((current) => current.includes(publicationId) ? current.filter((item) => item !== publicationId) : [...current, publicationId]);
   }
 
-  if (loading) return <main className="min-h-screen bg-slate-50 p-8"><div className="mx-auto h-96 max-w-6xl animate-pulse rounded-2xl bg-slate-200" /></main>;
-  if (error && !listing) return <main className="min-h-screen bg-slate-50 p-8"><section className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-red-50 p-6"><h1 className="font-bold">İlan bilgileri alınamadı</h1><p className="mt-2 text-sm">{error}</p><button className="mt-4 rounded-lg border px-3 py-2 text-sm" onClick={() => void load()} type="button">Tekrar Dene</button></section></main>;
+  if (loading) return <AppShell><div className="p-md max-w-[1600px] mx-auto"><div className="h-96 animate-pulse rounded-2xl bg-slate-200" /></div></AppShell>;
+  if (error && !listing) return <AppShell><div className="p-md max-w-[1600px] mx-auto"><section className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-red-50 p-6"><h1 className="font-bold">İlan bilgileri alınamadı</h1><p className="mt-2 text-sm">{error}</p><button className="mt-4 rounded-lg border px-3 py-2 text-sm" onClick={() => void load()} type="button">Tekrar Dene</button></section></div></AppShell>;
   if (!listing) return null;
 
   const publishing = listing.status === 'PUBLISHING';
@@ -307,8 +308,10 @@ export function ListingDetailPage() {
   const canRepublish = listing.status === 'ACTIVE' && hasMedia && selectedPublicationIds.length > 0 && !action;
   const housingDetails = buildListingDetailItems(listing.residentialDetails, listing.currency);
 
-  return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-10"><div className="mx-auto max-w-6xl">
-    <Link className="text-sm font-semibold text-teal-700 hover:underline" href="/listings">← İlanlarıma dön</Link>
+  return (
+    <AppShell>
+      <div className="p-md max-w-[1600px] mx-auto text-slate-900">
+        <Link className="text-sm font-semibold text-teal-700 hover:underline" href="/listings">← İlanlarıma dön</Link>
     {error && <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <header className="mt-4 rounded-2xl border bg-white p-6"><div className="flex flex-col gap-4 lg:flex-row lg:justify-between"><div><p className="text-sm font-semibold text-slate-500">{listing.listingNo} · <span className="rounded-full bg-slate-100 px-2 py-1">{getListingStatusLabel(listing.status)}</span></p><h1 className="mt-2 text-3xl font-bold">{listing.title}</h1><strong className="mt-4 block text-xl">{money(listing.price, listing.currency)}</strong></div>
@@ -341,5 +344,8 @@ export function ListingDetailPage() {
         </section>
         <section className="rounded-2xl border bg-white p-6"><h2 className="text-lg font-bold">Aktivite Geçmişi</h2>{history.length ? <ol className="mt-4 space-y-4 border-l-2 border-slate-200 pl-4">{history.map((item) => <li key={item.id}><p className="font-semibold">{translateAuditAction(item.action)}</p><p className="text-sm text-slate-600">{item.actor ? `${item.actor.firstName} ${item.actor.lastName}` : 'Sistem'} · {date(item.createdAt)}</p>{item.changes && <p className="mt-1 text-sm text-slate-500">{formatListingActivityChanges(item.changes).join(' · ')}</p>}</li>)}</ol> : <p className="mt-3 text-sm text-slate-600">Aktivite kaydı yok.</p>}</section>
       </aside>
-    </div></div></main>;
+      </div>
+    </div>
+  </AppShell>
+  );
 }

@@ -14,10 +14,15 @@ export type VerificationCodeMailData = {
   resendAvailableAt: Date;
 };
 
+export type PasswordChangeCodeMailData = {
+  to: string;
+  code: string;
+  expiresAt: Date;
+};
+
 export type OrganizationApplicationMailData = {
   to: string;
   organizationName: string;
   userName?: string;
   rejectionReason?: string | null;
 };
-

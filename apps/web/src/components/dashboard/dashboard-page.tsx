@@ -3,10 +3,26 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { authenticatedFetch } from '../../lib/api-client';
+import { AppShell } from '../layout/app-shell';
 
 type DashboardSummary = {
-  listings: { total: number; draft: number; publishing: number; active: number; archived: number };
-  portalAccounts: { total: number; connected: number; failed: number; notTested: number };
+  listings: {
+    total: number;
+    draft: number;
+    publishing: number;
+    active: number;
+    archived: number;
+    createdToday: number;
+    createdLast7Days: number;
+    createdLast30Days: number;
+  };
+  portalAccounts: {
+    total: number;
+    connected: number;
+    failed: number;
+    notTested: number;
+    totalActivePortals: number;
+  };
   publications: { total: number; queued: number; processing: number; published: number; failed: number };
   recentPublications: Array<{ publicationId: string; listingId: string; listingTitle: string; portalName: string; status: string; externalUrl: string | null; publishedAt: string | null; updatedAt: string }>;
   recentErrors: Array<{ publicationId: string; listingId: string; listingTitle: string; portalName: string; lastError: string | null; updatedAt: string }>;
@@ -69,11 +85,6 @@ function formatRelativeTime(dateStr: string) {
   }
 }
 
-function profileRoleLabel(role?: string) {
-  if (role === 'ADMIN') return 'Sistem Yöneticisi';
-  return 'Premium Danışman';
-}
-
 export function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -83,7 +94,13 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const successRate = (() => {
+    if (!summary) return 0;
+    const totalResolved = summary.publications.published + summary.publications.failed;
+    if (totalResolved === 0) return 0;
+    return Math.round((summary.publications.published / totalResolved) * 100);
+  })();
 
   useEffect(() => {
     let active = true;
@@ -125,112 +142,37 @@ export function DashboardPage() {
   }, [reloadKey]);
 
   if (loading) {
-    return <DashboardSkeleton />;
+    return (
+      <AppShell>
+        <DashboardContentSkeleton />
+      </AppShell>
+    );
   }
 
   if (error) {
     return (
-      <div className="bg-background text-on-surface min-h-screen flex flex-col items-center justify-center p-md">
-        <section className="max-w-md w-full rounded-2xl border border-error bg-surface-container-lowest p-6 shadow-lg text-center">
-          <span className="material-symbols-outlined text-[48px] text-error mb-4" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
-          <h2 className="text-headline-md font-bold mb-2">Dashboard verileri alınamadı</h2>
-          <p className="text-secondary text-body-md mb-6">Sunucu bağlantısı sırasında bir hata oluştu. Lütfen tekrar deneyin.</p>
-          <button 
-            className="w-full bg-primary text-white py-3 px-4 rounded-xl font-bold hover:opacity-90 transition-opacity" 
-            onClick={() => setReloadKey(prev => prev + 1)}
-            type="button"
-          >
-            Tekrar Dene
-          </button>
-        </section>
-      </div>
+      <AppShell>
+        <div className="p-md max-w-md mx-auto mt-12 text-center">
+          <section className="rounded-2xl border border-error bg-surface-container-lowest p-6 shadow-lg">
+            <span className="material-symbols-outlined text-[48px] text-error mb-4" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
+            <h2 className="text-headline-md font-bold mb-2">Dashboard verileri alınamadı</h2>
+            <p className="text-secondary text-body-md mb-6">Sunucu bağlantısı sırasında bir hata oluştu. Lütfen tekrar deneyin.</p>
+            <button 
+              className="w-full bg-primary text-white py-3 px-4 rounded-xl font-bold hover:opacity-90 transition-opacity" 
+              onClick={() => setReloadKey(prev => prev + 1)}
+              type="button"
+            >
+              Tekrar Dene
+            </button>
+          </section>
+        </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="bg-background text-on-surface min-h-screen font-sans">
-      {/* Mobile Sidebar Backdrop */}
-      {mobileSidebarOpen && (
-        <div onClick={() => setMobileSidebarOpen(false)} className="fixed inset-0 bg-black/40 z-40 lg:hidden" />
-      )}
-
-      {/* Fixed Left Sidebar (SideNavBar) */}
-      <aside className={`w-[260px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] flex flex-col gap-y-4 py-8 z-50 transition-transform duration-300 lg:translate-x-0 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="px-6 mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-on-primary">
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>real_estate_agent</span>
-            </div>
-            <div>
-              <h1 className="font-headline-md text-headline-md font-bold text-primary leading-tight">tiklayayinla</h1>
-              <p className="text-[9px] uppercase tracking-widest text-secondary font-semibold">Emlak Yönetim Paneli</p>
-            </div>
-          </div>
-          <button onClick={() => setMobileSidebarOpen(false)} className="lg:hidden p-1 text-secondary hover:bg-surface-container-low rounded-full transition-all">
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <nav className="flex-1 space-y-1 px-4">
-          <Link className="relative flex items-center gap-3 px-4 py-3 rounded-lg bg-primary/5 text-primary border-l-4 border-primary font-semibold transition-all duration-200 ease-in-out" href="/dashboard">
-            <span className="material-symbols-outlined">dashboard</span>
-            <span className="font-body-md text-body-md">Panel</span>
-          </Link>
-          <Link className="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-low hover:text-primary transition-all duration-200 ease-in-out" href="/listings">
-            <span className="material-symbols-outlined">maps_home_work</span>
-            <span className="font-body-md text-body-md">İlanlar</span>
-          </Link>
-          <Link className="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-low hover:text-primary transition-all duration-200 ease-in-out" href="/portal-accounts">
-            <span className="material-symbols-outlined">sync_alt</span>
-            <span className="font-body-md text-body-md">Portallar</span>
-          </Link>
-          <Link className="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-low hover:text-primary transition-all duration-200 ease-in-out" href="/activity">
-            <span className="material-symbols-outlined">analytics</span>
-            <span className="font-body-md text-body-md">Analizler</span>
-          </Link>
-        </nav>
-        <div className="mt-auto px-4">
-          <Link href="/listings/new" className="w-full bg-primary-container text-on-primary-container py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-sm">
-            <span className="material-symbols-outlined">add_circle</span>
-            <span className="font-body-md text-body-md">Hızlı İlan Yayınla</span>
-          </Link>
-        </div>
-      </aside>
-
-      {/* Top AppBar */}
-      <header className="h-16 fixed top-0 right-0 left-0 lg:left-[260px] bg-surface-container-lowest border-b border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] flex items-center justify-between px-md z-40 transition-all duration-300">
-        <div className="flex items-center gap-3 flex-1 max-w-xl">
-          <button onClick={() => setMobileSidebarOpen(prev => !prev)} className="lg:hidden p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all">
-            <span className="material-symbols-outlined">menu</span>
-          </button>
-          <div className="relative group w-full hidden md:block">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
-            <input className="w-full max-w-md bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2 text-body-md focus:ring-2 focus:ring-primary/20 transition-all focus:outline-none" placeholder="Müşteri, İlan No veya Portal ara..." type="text"/>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <button className="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-all relative">
-            <span className="material-symbols-outlined">notifications</span>
-            <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
-          </button>
-          <button className="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-all">
-            <span className="material-symbols-outlined">settings</span>
-          </button>
-          <div className="h-8 w-px bg-outline-variant mx-2"></div>
-          <div className="flex items-center gap-3 pl-2">
-            <div className="text-right hidden sm:block">
-              <p className="text-body-md font-semibold text-on-surface">{profile ? `${profile.firstName} ${profile.lastName}` : 'Gayrimenkul Danışmanı'}</p>
-              <p className="text-label-sm text-secondary">{profileRoleLabel(profile?.role)}</p>
-            </div>
-            <div className="w-10 h-10 rounded-full border-2 border-primary/20 p-0.5">
-              <img className="w-full h-full rounded-full object-cover" alt="Kullanıcı Fotoğrafı" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPcxHUAI7YYimNWNzyb1uC3L9gP7YShCRnLzzFSg31tdbgzJFUN7u1jW01gCr7LgzHVYj3sotaLI5KYp4C4bbf2cc7r3XZQge9cNhrlac2Y_WIFLck2AfSfBqzmgWn5Tz14Z68Es3BHKQmuohgyR1co3dTzmlBYgNA1V3gf-B1s5VqEkUdvxiVboIdVwUrvpVl8ToYzeRm8kPeG08b0x0uEqOwtFcmzIHSHtaqAuO-kQ_c3BAzUeZd"/>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="ml-0 lg:ml-[260px] pt-16 min-h-screen p-md max-w-[1600px] transition-all duration-300">
+    <AppShell>
+      <div className="p-md max-w-[1600px] mx-auto">
         {/* Header Section */}
         <section className="mb-lg flex flex-col md:flex-row md:items-center justify-between gap-4 mt-6">
           <div>
@@ -246,25 +188,17 @@ export function DashboardPage() {
         </section>
 
         {/* Ana İlan İstatistikleri */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-lg">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter mb-lg">
           {/* Aktif İlanlar */}
           <div className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] hover:-translate-y-1 transition-transform duration-300">
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-primary/10 rounded-lg text-primary">
                 <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>inventory_2</span>
               </div>
-              <span className="text-primary font-semibold text-label-md flex items-center gap-1 bg-primary/5 px-2 py-1 rounded">
-                <span className="material-symbols-outlined text-[14px]">trending_up</span> +12%
-              </span>
             </div>
             <h3 className="text-secondary font-label-md mb-1">Aktif İlanlar</h3>
             <p className="text-headline-xl font-headline-xl text-on-surface">{summary?.listings.active ?? 0}</p>
-            <div className="mt-4 h-1 bg-surface-container-low rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary transition-all duration-500" 
-                style={{ width: `${summary ? (summary.listings.active / (summary.listings.total || 1)) * 100 : 75}%` }}
-              />
-            </div>
+            <p className="text-label-sm text-secondary mt-2">{summary?.listings.draft ?? 0} taslak ilan bulunuyor</p>
           </div>
 
           {/* Yayınlanan İlanlar */}
@@ -273,36 +207,34 @@ export function DashboardPage() {
               <div className="p-2 bg-secondary-container rounded-lg text-on-secondary-container">
                 <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>cloud_done</span>
               </div>
-              <span className="text-primary font-semibold text-label-md flex items-center gap-1 bg-primary/5 px-2 py-1 rounded">
-                <span className="material-symbols-outlined text-[14px]">trending_up</span> +8%
-              </span>
             </div>
-            <h3 className="text-secondary font-label-md mb-1">Yayınlanan İlanlar</h3>
+            <h3 className="text-secondary font-label-md mb-1">Yayındaki İlanlar</h3>
             <p className="text-headline-xl font-headline-xl text-on-surface">{summary?.publications.published ?? 0}</p>
-            <div className="mt-4 flex gap-1 items-end h-8">
-              <div className="bg-primary/20 w-full h-[40%] rounded-t-sm"></div>
-              <div className="bg-primary/20 w-full h-[60%] rounded-t-sm"></div>
-              <div className="bg-primary/20 w-full h-[45%] rounded-t-sm"></div>
-              <div className="bg-primary/20 w-full h-[80%] rounded-t-sm"></div>
-              <div className="bg-primary w-full h-[100%] rounded-t-sm animate-pulse"></div>
-            </div>
+            <p className="text-label-sm text-secondary mt-2">Aktif ilan yayınları</p>
           </div>
 
-          {/* Toplam Görüntülenme -> Bağlı Portallar */}
+          {/* Yayın Başarı Oranı */}
+          <div className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] hover:-translate-y-1 transition-transform duration-300">
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg">
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+              </div>
+            </div>
+            <h3 className="text-secondary font-label-md mb-1">Yayın Başarı Oranı</h3>
+            <p className="text-headline-xl font-headline-xl text-on-surface">%{successRate}</p>
+            <p className="text-label-sm text-secondary mt-2">Başarılı / Sonuçlanan yayın</p>
+          </div>
+
+          {/* Bağlı Portallar */}
           <div className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] hover:-translate-y-1 transition-transform duration-300">
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-tertiary-fixed rounded-lg text-on-tertiary-fixed-variant">
                 <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>sync</span>
               </div>
-              <div className="w-24 h-8">
-                <svg className="w-full h-full stroke-primary fill-none stroke-[3]" viewBox="0 0 100 40">
-                  <path d="M0,35 Q10,10 20,30 T40,20 T60,35 T80,10 T100,25"></path>
-                </svg>
-              </div>
             </div>
             <h3 className="text-secondary font-label-md mb-1">Bağlı Portallar</h3>
             <p className="text-headline-xl font-headline-xl text-on-surface">
-              {summary ? `${summary.portalAccounts.connected}/${summary.portalAccounts.total}` : '0/0'}
+              {summary ? `${summary.portalAccounts.connected} / ${summary.portalAccounts.totalActivePortals}` : '0 / 0'}
             </p>
             <p className="text-label-sm text-secondary mt-2">Aktif portal bağlantıları</p>
           </div>
@@ -414,6 +346,27 @@ export function DashboardPage() {
 
           {/* Son Aday Müşteriler -> Son Yayınlar & Hatalar */}
           <section className="lg:col-span-4 flex flex-col gap-6">
+            {/* İlan Aktivitesi */}
+            <div className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-sm animate-fade-in">
+              <h3 className="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[20px]">calendar_today</span>
+                İlan Aktivitesi
+              </h3>
+              <div className="divide-y divide-outline-variant text-sm">
+                <div className="flex justify-between py-2.5">
+                  <span className="text-secondary font-medium">Bugün</span>
+                  <span className="font-bold text-on-surface bg-surface-container-low px-2 py-0.5 rounded">{summary?.listings.createdToday ?? 0}</span>
+                </div>
+                <div className="flex justify-between py-2.5">
+                  <span className="text-secondary font-medium">Son 7 Gün</span>
+                  <span className="font-bold text-on-surface bg-surface-container-low px-2 py-0.5 rounded">{summary?.listings.createdLast7Days ?? 0}</span>
+                </div>
+                <div className="flex justify-between py-2.5">
+                  <span className="text-secondary font-medium">Son 30 Gün</span>
+                  <span className="font-bold text-on-surface bg-surface-container-low px-2 py-0.5 rounded">{summary?.listings.createdLast30Days ?? 0}</span>
+                </div>
+              </div>
+            </div>
             <div>
               <div className="flex items-center justify-between mb-sm">
                 <h3 className="font-headline-md text-headline-md text-on-surface">Son Yayınlar</h3>
@@ -521,9 +474,9 @@ export function DashboardPage() {
                           </div>
                         </div>
                         
-                        <div className="bg-error-container/10 p-2.5 rounded-lg border border-error-container/20 mb-3">
-                          <p className="text-[12px] text-error font-medium line-clamp-2">
-                            {item.lastError || "Bilinmeyen bir entegrasyon hatası oluştu."}
+                        <div className="bg-surface-container-low p-2 rounded-lg mb-3">
+                          <p className="text-[12px] text-error font-semibold truncate">
+                            {item.lastError || 'Bilinmeyen hata oluştu.'}
                           </p>
                         </div>
                         
@@ -543,116 +496,80 @@ export function DashboardPage() {
             </div>
           </section>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }
 
-function DashboardSkeleton() {
+function DashboardContentSkeleton() {
   return (
-    <div className="bg-background text-on-surface min-h-screen font-sans">
-      {/* Sidebar skeleton */}
-      <aside className="w-[260px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] flex flex-col gap-y-4 py-8 z-50 hidden lg:flex">
-        <div className="px-6 mb-8 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-surface-container-low animate-pulse" />
-          <div className="space-y-2">
-            <div className="h-4 w-32 bg-surface-container-low animate-pulse rounded" />
-            <div className="h-2.5 w-20 bg-surface-container-low animate-pulse rounded" />
-          </div>
+    <div className="p-md max-w-[1600px] mx-auto">
+      <section className="mb-lg flex flex-col md:flex-row md:items-center justify-between gap-4 mt-6">
+        <div className="space-y-2">
+          <div className="h-8 w-64 bg-surface-container-low animate-pulse rounded" />
+          <div className="h-4 w-96 bg-surface-container-low animate-pulse rounded" />
         </div>
-        <div className="flex-1 space-y-3 px-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-12 bg-surface-container-low animate-pulse rounded-lg" />
-          ))}
-        </div>
-      </aside>
-
-      {/* Header skeleton */}
-      <header className="h-16 fixed top-0 right-0 left-0 lg:left-[260px] bg-surface-container-lowest border-b border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] flex items-center justify-between px-md z-40">
-        <div className="w-48 h-10 bg-surface-container-low animate-pulse rounded-full hidden md:block" />
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-surface-container-low animate-pulse" />
-          <div className="w-10 h-10 rounded-full bg-surface-container-low animate-pulse" />
-          <div className="h-8 w-px bg-outline-variant mx-2" />
-          <div className="flex items-center gap-3">
-            <div className="space-y-2 text-right hidden sm:block">
-              <div className="h-3 w-24 bg-surface-container-low animate-pulse rounded" />
-              <div className="h-2 w-16 bg-surface-container-low animate-pulse rounded" />
+        <div className="w-40 h-12 bg-surface-container-low animate-pulse rounded-xl" />
+      </section>
+      
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-lg">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] h-[142px]">
+            <div className="flex justify-between items-start mb-4">
+              <div className="w-10 h-10 bg-surface-container-low animate-pulse rounded-lg" />
+              <div className="w-12 h-6 bg-surface-container-low animate-pulse rounded" />
             </div>
-            <div className="w-10 h-10 rounded-full bg-surface-container-low animate-pulse" />
+            <div className="h-4 w-24 bg-surface-container-low animate-pulse rounded mb-2" />
+            <div className="h-10 w-16 bg-surface-container-low animate-pulse rounded mb-4" />
+            <div className="h-2 bg-surface-container-low animate-pulse rounded-full w-full" />
           </div>
-        </div>
-      </header>
+        ))}
+      </section>
 
-      {/* Main Content skeleton */}
-      <main className="ml-0 lg:ml-[260px] pt-16 min-h-screen p-md max-w-[1600px] transition-all duration-300">
-        <section className="mb-lg flex flex-col md:flex-row md:items-center justify-between gap-4 mt-6">
-          <div className="space-y-2">
-            <div className="h-8 w-64 bg-surface-container-low animate-pulse rounded" />
-            <div className="h-4 w-96 bg-surface-container-low animate-pulse rounded" />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+        <section className="lg:col-span-8 space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="h-6 w-48 bg-surface-container-low animate-pulse rounded" />
+            <div className="h-4 w-24 bg-surface-container-low animate-pulse rounded" />
           </div>
-          <div className="w-40 h-12 bg-surface-container-low animate-pulse rounded-xl" />
-        </section>
-        
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-lg">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] h-[142px]">
-              <div className="flex justify-between items-start mb-4">
-                <div className="w-10 h-10 bg-surface-container-low animate-pulse rounded-lg" />
-                <div className="w-12 h-6 bg-surface-container-low animate-pulse rounded" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-surface-container-lowest p-sm rounded-xl border border-outline-variant flex items-center gap-4 h-[76px]">
+                <div className="w-12 h-12 bg-surface-container-low animate-pulse rounded-lg" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-24 bg-surface-container-low animate-pulse rounded" />
+                  <div className="h-3 w-32 bg-surface-container-low animate-pulse rounded" />
+                </div>
               </div>
-              <div className="h-4 w-24 bg-surface-container-low animate-pulse rounded mb-2" />
-              <div className="h-10 w-16 bg-surface-container-low animate-pulse rounded mb-4" />
-              <div className="h-2 bg-surface-container-low animate-pulse rounded-full w-full" />
-            </div>
-          ))}
+            ))}
+          </div>
+          <div className="h-48 bg-surface-container-low animate-pulse rounded-2xl" />
         </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
-          <section className="lg:col-span-8 space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="h-6 w-48 bg-surface-container-low animate-pulse rounded" />
-              <div className="h-4 w-24 bg-surface-container-low animate-pulse rounded" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-surface-container-lowest p-sm rounded-xl border border-outline-variant flex items-center gap-4 h-[76px]">
-                  <div className="w-12 h-12 bg-surface-container-low animate-pulse rounded-lg" />
+        <section className="lg:col-span-4 space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="h-6 w-32 bg-surface-container-low animate-pulse rounded" />
+            <div className="h-4 w-16 bg-surface-container-low animate-pulse rounded" />
+          </div>
+          <div className="space-y-4">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant shadow-sm space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-surface-container-low animate-pulse" />
                   <div className="flex-1 space-y-2">
                     <div className="h-4 w-24 bg-surface-container-low animate-pulse rounded" />
-                    <div className="h-3 w-32 bg-surface-container-low animate-pulse rounded" />
+                    <div className="h-3 w-16 bg-surface-container-low animate-pulse rounded" />
                   </div>
                 </div>
-              ))}
-            </div>
-            <div className="h-48 bg-surface-container-low animate-pulse rounded-2xl" />
-          </section>
-          <section className="lg:col-span-4 space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="h-6 w-32 bg-surface-container-low animate-pulse rounded" />
-              <div className="h-4 w-16 bg-surface-container-low animate-pulse rounded" />
-            </div>
-            <div className="space-y-4">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant shadow-sm space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-surface-container-low animate-pulse" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 w-24 bg-surface-container-low animate-pulse rounded" />
-                      <div className="h-3 w-16 bg-surface-container-low animate-pulse rounded" />
-                    </div>
-                  </div>
-                  <div className="h-8 bg-surface-container-low animate-pulse rounded-lg w-full" />
-                  <div className="flex gap-2">
-                    <div className="h-8 bg-surface-container-low animate-pulse rounded-lg flex-1" />
-                    <div className="h-8 bg-surface-container-low animate-pulse rounded-lg flex-1" />
-                  </div>
+                <div className="h-8 bg-surface-container-low animate-pulse rounded-lg w-full" />
+                <div className="flex gap-2">
+                  <div className="h-8 bg-surface-container-low animate-pulse rounded-lg flex-1" />
+                  <div className="h-8 bg-surface-container-low animate-pulse rounded-lg flex-1" />
                 </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      </main>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

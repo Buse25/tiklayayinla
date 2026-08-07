@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, Length } from 'class-validator';
+import { IsOptional, IsString, Length, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateMyProfileDto {
@@ -22,4 +22,16 @@ export class UpdateMyProfileDto {
   @Transform(({ value }) => typeof value === 'string' && value.trim() === '' ? null : typeof value === 'string' ? value.trim() : value)
   @IsString()
   phone?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  about?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  address?: string | null;
 }

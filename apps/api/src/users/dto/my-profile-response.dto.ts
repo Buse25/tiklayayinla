@@ -15,6 +15,8 @@ export class MyProfileResponseDto {
   @ApiProperty({ example: 'Ayşe' }) firstName!: string;
   @ApiProperty({ example: 'Yılmaz' }) lastName!: string;
   @ApiPropertyOptional({ example: '+905551112233', nullable: true }) phone!: string | null;
+  @ApiPropertyOptional({ nullable: true }) about!: string | null;
+  @ApiPropertyOptional({ nullable: true }) address!: string | null;
   @ApiProperty({ enum: UserRole, example: UserRole.USER }) role!: UserRole;
   @ApiProperty({ enum: UserStatus, example: UserStatus.ACTIVE }) status!: UserStatus;
   @ApiProperty({ example: '2026-08-04T10:00:00.000Z' }) createdAt!: Date;

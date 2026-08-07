@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { AppShell } from '../../layout/app-shell';
 import { createInitialMapping, duplicatedSources } from '../../../lib/listings-import/normalizer';
 import { parseImportFile } from '../../../lib/listings-import/parser';
 import { maxImportFileSizeBytes, type ColumnMapping, type ImportStep, type ParsedImportFile } from '../../../lib/listings-import/types';
@@ -89,8 +90,8 @@ export function ListingsImportPage() {
     setStep((current) => Math.max(current - 1, 0) as ImportStep);
   }
 
-  return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
-    <div className="mx-auto max-w-6xl">
+  return <AppShell>
+    <div className="p-md max-w-[1600px] mx-auto text-slate-900">
       <Link className="text-sm font-semibold text-teal-700 hover:underline" href="/listings">← İlanlara dön</Link>
       <header className="mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-semibold text-teal-700">TOPLU İŞLEM</p>
@@ -111,5 +112,5 @@ export function ListingsImportPage() {
         <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50" disabled={reading || (step === 0 && !parsed) || !sectorAllowed} onClick={next} type="button">Devam et</button>
       </footer>}
     </div>
-  </main>;
+  </AppShell>;
 }
