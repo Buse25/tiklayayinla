@@ -1,9 +1,11 @@
 import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { ListingStatus, PublicationStatus } from '@prisma/client';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { PublishingService } from '../publishing/publishing.service';
 import type { BulkListingResultDto, BulkListingsResponseDto } from './dto/bulk-listings.dto';
 import { ListingsService } from './listings.service';
+import { assertPropertySectorAccess } from './sector-guard';
 
 const maxListings = 100;
 
@@ -11,27 +13,30 @@ const maxListings = 100;
 export class BulkListingsService {
   constructor(private readonly prisma: PrismaService, private readonly listings: ListingsService, private readonly publishing: PublishingService) {}
 
-  async updateStatus(userId: string, listingIds: string[], status: ListingStatus): Promise<BulkListingsResponseDto> {
+  async updateStatus(user: AuthenticatedUser, listingIds: string[], status: ListingStatus): Promise<BulkListingsResponseDto> {
+    assertPropertySectorAccess(user, 'status');
     return this.run(listingIds, async (listingId) => {
-      const listing = await this.listings.updateStatus(userId, listingId, { status });
+      const listing = await this.listings.updateStatus(user, listingId, { status });
       return { listingId, success: true, status: listing.status };
     }, 'status');
   }
 
-  async publish(userId: string, listingIds: string[], portalAccountIds: string[]): Promise<BulkListingsResponseDto> {
+  async publish(user: AuthenticatedUser, listingIds: string[], portalAccountIds: string[]): Promise<BulkListingsResponseDto> {
+    assertPropertySectorAccess(user, 'publish');
     return this.run(listingIds, async (listingId) => {
-      const result = await this.publishing.requestPublish(userId, listingId, { portalAccountIds });
+      const result = await this.publishing.requestPublish(user, listingId, { portalAccountIds });
       return { listingId, success: true, jobsCreated: result.queuedJobCount };
     }, 'publish');
   }
 
-  async republish(userId: string, listingIds: string[]): Promise<BulkListingsResponseDto> {
+  async republish(user: AuthenticatedUser, listingIds: string[]): Promise<BulkListingsResponseDto> {
+    assertPropertySectorAccess(user, 'republish');
     return this.run(listingIds, async (listingId) => {
-      const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: userId }, select: { id: true } });
+      const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: user.id }, select: { id: true } });
       if (!listing) throw new NotFoundException('İlan bulunamadı.');
       const publications = await this.prisma.listingPublication.findMany({ where: { listingId, status: { in: [PublicationStatus.UPDATE_REQUIRED, PublicationStatus.FAILED] } }, select: { id: true } });
       if (!publications.length) throw new UnprocessableEntityException('Yeniden yayınlanabilecek UPDATE_REQUIRED veya FAILED publication kaydı yok.');
-      const result = await this.publishing.requestRepublish(userId, listingId, { publicationIds: publications.map((publication) => publication.id) });
+      const result = await this.publishing.requestRepublish(user, listingId, { publicationIds: publications.map((publication) => publication.id) });
       return { listingId, success: true, jobsCreated: result.queuedJobCount };
     }, 'republish');
   }

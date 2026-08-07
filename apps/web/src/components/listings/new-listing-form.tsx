@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { enumOptions, featureCategories, type FeatureCategory, type Option } from '../../data/listing-form-options';
 import { authenticatedFetch } from '../../lib/api-client';
+import { getListingTypeLabel } from '../../lib/listing-display-labels';
+import { canUsePropertyListings, sectorRestrictionMessage, type OrganizationType } from '../../lib/sector';
 
 type FormData = Record<string, string>;
 type FeatureSelections = Record<FeatureCategory['key'], string[]>;
@@ -33,9 +35,21 @@ export function NewListingForm() {
   const [features, setFeatures] = useState<FeatureSelections>(initialFeatures);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [organizationType, setOrganizationType] = useState<OrganizationType>(undefined);
+  const sectorAllowed = canUsePropertyListings(organizationType);
 
   function setValue(key: string, value: string) { setData((current) => ({ ...current, [key]: value })); }
   function toggleFeature(key: FeatureCategory['key'], value: string) { setFeatures((current) => ({ ...current, [key]: current[key].includes(value) ? current[key].filter((item) => item !== value) : [...current[key], value] })); }
+
+  useEffect(() => {
+    let active = true;
+    void authenticatedFetch('users/me').then(async (response) => {
+      if (!response.ok) return;
+      const profile = await response.json() as { organizationType?: OrganizationType };
+      if (active) setOrganizationType(profile.organizationType ?? null);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   function validateStep(targetStep: number): string | null {
     if (targetStep === 0) {
@@ -75,6 +89,10 @@ export function NewListingForm() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (!sectorAllowed) {
+      setError(sectorRestrictionMessage(organizationType));
+      return;
+    }
     const firstInvalidStep = [0, 1, 2].find((targetStep) => validateStep(targetStep));
     if (firstInvalidStep !== undefined) { setError(validateStep(firstInvalidStep)); setStep(firstInvalidStep); return; }
     setError(null); setIsSubmitting(true);
@@ -93,6 +111,7 @@ export function NewListingForm() {
 
   return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6 lg:px-10"><form className="mx-auto max-w-5xl" onSubmit={submit}>
     <header className="mb-8 flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-teal-700">YENİ PORTFÖY</p><h1 className="mt-1 text-3xl font-bold">Yeni ilan oluştur</h1><p className="mt-2 text-sm text-slate-600"><span className="text-red-600">*</span> işaretli alanlar zorunludur.</p></div><Link className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200" href="/listings">İlanlarıma dön</Link></header>
+    {!sectorAllowed && <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{sectorRestrictionMessage(organizationType)}</div>}
     <ol className="mb-8 grid gap-2 sm:grid-cols-5">{steps.map((label, index) => <li className={`rounded-lg px-3 py-2 text-center text-xs font-semibold ${index === step ? 'bg-teal-700 text-white' : index < step ? 'bg-teal-100 text-teal-800' : 'bg-slate-200 text-slate-600'}`} key={label}>{index + 1}. {label}</li>)}</ol>
     {error && <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{error}</div>}
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
@@ -100,9 +119,9 @@ export function NewListingForm() {
       {step === 1 && <div className="grid gap-5 sm:grid-cols-2"><Field label="İl" required value={data.city ?? ''} onChange={(value) => setValue('city', value)} /><Field label="İlçe" required value={data.district ?? ''} onChange={(value) => setValue('district', value)} /><Field label="Mahalle" value={data.neighborhood ?? ''} onChange={(value) => setValue('neighborhood', value)} /><Field label="Açık adres" required value={data.address ?? ''} onChange={(value) => setValue('address', value)} /><Field label="Enlem" type="number" value={data.latitude ?? ''} onChange={(value) => setValue('latitude', value)} /><Field label="Boylam" type="number" value={data.longitude ?? ''} onChange={(value) => setValue('longitude', value)} /></div>}
       {step === 2 && <div className="grid gap-5 sm:grid-cols-2">{detailFields.map((field) => field.key === 'complexName' && data.isInComplex !== 'true' ? null : field.type === 'select' ? <Select key={field.key} label={field.label} value={data[field.key] ?? ''} options={field.options!} onChange={(value) => setValue(field.key, value)} /> : field.type === 'boolean' ? <Select key={field.key} label={field.label} value={data[field.key] ?? ''} options={[{ value: 'true', label: 'Evet' }, { value: 'false', label: 'Hayır' }]} onChange={(value) => setValue(field.key, value)} /> : <Field key={field.key} label={field.label} type={field.type} min={field.min?.toString()} value={data[field.key] ?? ''} onChange={(value) => setValue(field.key, value)} />)}</div>}
       {step === 3 && <div className="space-y-7">{featureCategories.map((category) => <fieldset key={category.key}><legend className="mb-3 text-base font-bold">{category.label}</legend><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{category.options.map((option) => <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm hover:border-teal-400" key={option.value}><input checked={features[category.key].includes(option.value)} onChange={() => toggleFeature(category.key, option.value)} type="checkbox" /><span>{option.label}</span></label>)}</div></fieldset>)}</div>}
-      {step === 4 && <div className="space-y-5"><h2 className="text-xl font-bold">Kaydetmeden önce kontrol edin</h2><div className="grid gap-4 rounded-xl bg-slate-50 p-5 sm:grid-cols-2"><Preview label="Başlık" value={data.title} /><Preview label="Fiyat" value={data.price ? `${data.price} ${data.currency}` : undefined} /><Preview label="Konum" value={[data.district, data.city].filter(Boolean).join(', ')} /><Preview label="İlan tipi" value={data.listingType === 'SALE' ? 'Satılık' : 'Kiralık'} /></div><p className="text-sm text-slate-600">İlan taslak olarak oluşturulur. Sonraki adımda görseller ekleyebilirsiniz.</p></div>}
+      {step === 4 && <div className="space-y-5"><h2 className="text-xl font-bold">Kaydetmeden önce kontrol edin</h2><div className="grid gap-4 rounded-xl bg-slate-50 p-5 sm:grid-cols-2"><Preview label="Başlık" value={data.title} /><Preview label="Fiyat" value={data.price ? `${data.price} ${data.currency}` : undefined} /><Preview label="Konum" value={[data.district, data.city].filter(Boolean).join(', ')} /><Preview label="İlan tipi" value={getListingTypeLabel(data.listingType)} /></div><p className="text-sm text-slate-600">İlan taslak olarak oluşturulur. Sonraki adımda görseller ekleyebilirsiniz.</p></div>}
     </section>
-    <footer className="mt-6 flex items-center justify-between"><button className="rounded-lg px-4 py-3 font-semibold text-slate-700 disabled:opacity-40" disabled={step === 0 || isSubmitting} onClick={() => setStep((current) => current - 1)} type="button">Geri</button>{step < steps.length - 1 ? <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800" onClick={nextStep} type="button">Devam et</button> : <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={isSubmitting} type="submit">{isSubmitting ? 'İlan oluşturuluyor...' : 'İlanı oluştur'}</button>}</footer>
+    <footer className="mt-6 flex items-center justify-between"><button className="rounded-lg px-4 py-3 font-semibold text-slate-700 disabled:opacity-40" disabled={step === 0 || isSubmitting || !sectorAllowed} onClick={() => setStep((current) => current - 1)} type="button">Geri</button>{step < steps.length - 1 ? <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50" disabled={!sectorAllowed} onClick={nextStep} type="button">Devam et</button> : <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={isSubmitting || !sectorAllowed} type="submit">{isSubmitting ? 'İlan oluşturuluyor...' : 'İlanı oluştur'}</button>}</footer>
   </form></main>;
 }
 

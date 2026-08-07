@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Building2, Check, Eye, EyeOff, Lock, Mail, MapPin, Phone, User } from 'lucide-react';
+import { saveVerificationContext } from '../../src/lib/verification-context';
 
 type FormData = {
   firstName: string;
@@ -121,7 +122,14 @@ export default function RegisterPage() {
         } else setError(typeof payload.message === 'string' ? payload.message : 'Kayıt işlemi tamamlanamadı.');
         return;
       }
-      router.push('/dashboard');
+      saveVerificationContext({
+        email: form.email.trim().toLowerCase(),
+        verificationContext: (payload as { verificationContext?: string }).verificationContext,
+        expiresAt: (payload as { expiresAt?: string | null }).expiresAt,
+        resendAvailableAt: (payload as { resendAvailableAt?: string | null }).resendAvailableAt,
+        mailDeliveryFailed: (payload as { mailDeliveryFailed?: boolean }).mailDeliveryFailed,
+      });
+      router.push('/register/verify-email');
       router.refresh();
     } catch {
       setError('Sunucuya ulaşılamadı. Lütfen tekrar deneyin.');

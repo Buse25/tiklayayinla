@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { MembershipStatus, OrganizationRole, OrganizationType, UserRole, UserStatus } from '@prisma/client';
+import { MembershipStatus, OrganizationApplicationStatus, OrganizationRole, OrganizationType, UserRole, UserStatus } from '@prisma/client';
 
 export class OrganizationMembershipSummaryDto {
   @ApiProperty() id!: string;
@@ -23,6 +23,7 @@ export class UserResponseDto {
   @ApiPropertyOptional({ enum: OrganizationType, nullable: true }) organizationType!: OrganizationType | null;
   @ApiPropertyOptional({ enum: OrganizationRole, nullable: true }) membershipRole!: OrganizationRole | null;
   @ApiPropertyOptional({ enum: MembershipStatus, nullable: true }) membershipStatus!: MembershipStatus | null;
+  @ApiPropertyOptional({ enum: OrganizationApplicationStatus, nullable: true }) organizationApplicationStatus!: OrganizationApplicationStatus | null;
 }
 
 export class AuthResponseDto {

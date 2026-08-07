@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { authenticatedFetch } from '../../lib/api-client';
+import { canUsePropertyListings, sectorRestrictionMessage, type OrganizationType } from '../../lib/sector';
 
 type ListingMedia = { id: string; url: string; sortOrder: number; isCover?: boolean };
 type ListingStatus = 'DRAFT' | 'PUBLISHING' | 'ACTIVE' | 'ARCHIVED';
@@ -81,6 +82,8 @@ export function ListingsPage() {
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [organizationType, setOrganizationType] = useState<OrganizationType>(undefined);
+  const sectorAllowed = canUsePropertyListings(organizationType);
 
   const visibleListings = result?.data ?? [];
   const visibleIds = useMemo(() => visibleListings.map((listing) => listing.id), [visibleListings]);
@@ -128,6 +131,12 @@ export function ListingsPage() {
       }
     }
 
+    void authenticatedFetch('users/me').then(async (response) => {
+      if (!response.ok) return;
+      const profile = await response.json() as { organizationType?: OrganizationType };
+      if (active) setOrganizationType(profile.organizationType ?? null);
+    }).catch(() => undefined);
+
     void loadListings();
     return () => { active = false; };
   }, [page, reloadKey, statusFilter]);
@@ -158,21 +167,21 @@ export function ListingsPage() {
   }
 
   async function runBulkStatus(status: 'ARCHIVED' | 'DRAFT') {
-    if (!selectedIds.length || busyAction) return;
+    if (!selectedIds.length || busyAction || !sectorAllowed) return;
     const confirmText = status === 'ARCHIVED' ? 'Seçilen ilanlar arşivlenecek.' : 'Seçilen ilanlar taslağa geri alınacak.';
     if (!window.confirm(confirmText)) return;
     await runBulk('status', 'listings/bulk/status', { listingIds: selectedIds, status });
   }
 
   async function runBulkPublish() {
-    if (!selectedIds.length || busyAction) return;
+    if (!selectedIds.length || busyAction || !sectorAllowed) return;
     if (!connectedAccounts.length) { setBulkError('Yayınlama için bağlantısı doğrulanmış bir portal hesabı bulunmuyor.'); return; }
     if (!selectedPortalIds.length) { setBulkError('Toplu yayınlama için en az bir portal hesabı seçin.'); return; }
     await runBulk('publish', 'listings/bulk/publish', { listingIds: selectedIds, portalAccountIds: selectedPortalIds });
   }
 
   async function runBulkRepublish() {
-    if (!selectedIds.length || busyAction) return;
+    if (!selectedIds.length || busyAction || !sectorAllowed) return;
     await runBulk('republish', 'listings/bulk/republish', { listingIds: selectedIds });
   }
 
@@ -206,14 +215,15 @@ export function ListingsPage() {
           <div className="flex flex-wrap gap-3">
             <Link className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100" href="/dashboard">Dashboard</Link>
             <Link className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100" href="/portal-accounts">Portal Hesapları</Link>
-            <Link className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100" href="/listings/import">Toplu İlan İçe Aktar</Link>
+            {sectorAllowed && <Link className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100" href="/listings/import">Toplu İlan İçe Aktar</Link>}
             <button className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50" disabled={isLoggingOut} onClick={() => void logout()} type="button">{isLoggingOut ? 'Çıkış yapılıyor...' : 'Çıkış yap'}</button>
-            <Link className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white transition hover:bg-teal-800" href="/listings/new">
+            {sectorAllowed && <Link className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white transition hover:bg-teal-800" href="/listings/new">
               <span className="material-symbols-rounded text-[20px]">add_home</span>
               Yeni İlan
-            </Link>
+            </Link>}
           </div>
         </header>
+        {!sectorAllowed && <section className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{sectorRestrictionMessage(organizationType)}</section>}
 
         <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -232,10 +242,10 @@ export function ListingsPage() {
               <h2 className="font-bold">Toplu işlem</h2>
               <p className="mt-1 text-sm text-slate-600">{selectedIds.length} ilan seçildi. Aynı ilan bir kez gönderilir.</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50" disabled={!!busyAction} onClick={() => void runBulkStatus('ARCHIVED')} type="button">{busyAction === 'status' ? 'İşleniyor...' : 'Arşivle'}</button>
-                <button className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50" disabled={!!busyAction} onClick={() => void runBulkStatus('DRAFT')} type="button">{busyAction === 'status' ? 'İşleniyor...' : 'Taslağa Geri Al'}</button>
-                <button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!!busyAction || selectedPortalIds.length === 0 || connectedAccounts.length === 0} onClick={() => void runBulkPublish()} type="button">{busyAction === 'publish' ? 'Yayınlanıyor...' : 'Portallara Yayınla'}</button>
-                <button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!!busyAction} onClick={() => void runBulkRepublish()} type="button">{busyAction === 'republish' ? 'Yeniden gönderiliyor...' : 'Yeniden Yayınla'}</button>
+                <button className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50" disabled={!!busyAction || !sectorAllowed} onClick={() => void runBulkStatus('ARCHIVED')} type="button">{busyAction === 'status' ? 'İşleniyor...' : 'Arşivle'}</button>
+                <button className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50" disabled={!!busyAction || !sectorAllowed} onClick={() => void runBulkStatus('DRAFT')} type="button">{busyAction === 'status' ? 'İşleniyor...' : 'Taslağa Geri Al'}</button>
+                <button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!!busyAction || selectedPortalIds.length === 0 || connectedAccounts.length === 0 || !sectorAllowed} onClick={() => void runBulkPublish()} type="button">{busyAction === 'publish' ? 'Yayınlanıyor...' : 'Portallara Yayınla'}</button>
+                <button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!!busyAction || !sectorAllowed} onClick={() => void runBulkRepublish()} type="button">{busyAction === 'republish' ? 'Yeniden gönderiliyor...' : 'Yeniden Yayınla'}</button>
                 <button className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50" disabled={!!busyAction} onClick={clearSelection} type="button">Seçimi Temizle</button>
               </div>
             </div>

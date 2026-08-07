@@ -2,6 +2,7 @@ import { ConflictException, Injectable, Logger, NotFoundException, OnModuleInit,
 import { AttemptStatus, AuditAction, AuditEntityType, ConnectionStatus, Prisma, PublicationAction, PublicationStatus } from '@prisma/client';
 import type { CanonicalListing, PortalCode } from '@tiklayayinla/shared-types';
 import { randomUUID } from 'crypto';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListingStatusService } from '../listings/listing-status.service';
 import { AdapterRegistry } from './adapter.registry';
@@ -9,6 +10,7 @@ import { RabbitMqService } from './rabbitmq.service';
 import { RedisService } from '../redis/redis.service';
 import type { PublishListingJob } from './publishing.types';
 import { AuditService } from '../audit/audit.service';
+import { assertPropertySectorAccess } from '../listings/sector-guard';
 
 type PublishRequest = { portalAccountIds: string[] };
 type RepublishRequest = { publicationIds: string[] };
@@ -36,15 +38,16 @@ export class PublishingService implements OnModuleInit {
     this.queue.consume((job) => this.process(job));
   }
 
-  async requestPublish(userId: string, listingId: string, request: PublishRequest) {
-    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: userId }, select: { id: true, status: true, media: { select: { id: true }, take: 1 } } });
+  async requestPublish(user: AuthenticatedUser, listingId: string, request: PublishRequest) {
+    assertPropertySectorAccess(user, 'publish');
+    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: user.id }, select: { id: true, status: true, media: { select: { id: true }, take: 1 } } });
     if (!listing) throw new NotFoundException('İlan bulunamadı.');
     if (!listing.media.length) throw new UnprocessableEntityException('Yayınlama için ilanda en az bir görsel bulunmalıdır.');
 
     if (listing.status === 'ARCHIVED') throw new ConflictException('Arşivlenmiş ilan yayınlanamaz.');
     const accountIds = [...new Set(request.portalAccountIds)];
     const accounts = await this.prisma.userPortalAccount.findMany({
-      where: { id: { in: accountIds }, userId },
+      where: { id: { in: accountIds }, userId: user.id },
       include: { portal: { select: { id: true, name: true, adapterKey: true, isActive: true } } },
     });
     if (accounts.length !== accountIds.length) throw new NotFoundException('Portal hesabı bulunamadı.');
@@ -100,7 +103,7 @@ export class PublishingService implements OnModuleInit {
 
     await this.listingStatus.markPublishing(listingId);
 
-    await this.audit.log({ actorUserId: userId, action: AuditAction.LISTING_PUBLISHED, entityType: AuditEntityType.LISTING, entityId: listingId, changes: { portalAccountCount: accountIds.length, jobsCreated: queuedJobCount } });
+    await this.audit.log({ actorUserId: user.id, action: AuditAction.LISTING_PUBLISHED, entityType: AuditEntityType.LISTING, entityId: listingId, changes: { portalAccountCount: accountIds.length, jobsCreated: queuedJobCount } });
 
     return {
       accepted: true,
@@ -110,8 +113,9 @@ export class PublishingService implements OnModuleInit {
     };
   }
 
-  async requestRepublish(userId: string, listingId: string, request: RepublishRequest) {
-    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: userId }, select: { id: true, status: true, media: { select: { id: true }, take: 1 } } });
+  async requestRepublish(user: AuthenticatedUser, listingId: string, request: RepublishRequest) {
+    assertPropertySectorAccess(user, 'republish');
+    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: user.id }, select: { id: true, status: true, media: { select: { id: true }, take: 1 } } });
     if (!listing) throw new NotFoundException('İlan bulunamadı.');
     if (!listing.media.length) throw new UnprocessableEntityException('Yeniden yayınlama için ilanda en az bir görsel bulunmalıdır.');
     if (listing.status === 'ARCHIVED') throw new ConflictException('Arşivlenmiş ilan yeniden yayınlanamaz.');
@@ -124,7 +128,7 @@ export class PublishingService implements OnModuleInit {
     if (publications.length !== publicationIds.length) throw new UnprocessableEntityException('Yalnızca UPDATE_REQUIRED veya FAILED durumundaki bu ilana ait yayınlar yeniden yayınlanabilir.');
     if (publications.some((publication) => !publication.portal.isActive)) throw new ConflictException('Pasif bir portal için yeniden yayın başlatılamaz.');
 
-    const accounts = await this.prisma.userPortalAccount.findMany({ where: { userId, portalId: { in: publications.map((publication) => publication.portalId) } }, select: { id: true, portalId: true, connectionStatus: true } });
+    const accounts = await this.prisma.userPortalAccount.findMany({ where: { userId: user.id, portalId: { in: publications.map((publication) => publication.portalId) } }, select: { id: true, portalId: true, connectionStatus: true } });
     const accountByPortal = new Map(accounts.map((account) => [account.portalId, account]));
     if (publications.some((publication) => accountByPortal.get(publication.portalId)?.connectionStatus !== ConnectionStatus.CONNECTED)) throw new ConflictException('Portal hesabı CONNECTED durumda olmadan yeniden yayın başlatılamaz.');
 
@@ -154,19 +158,19 @@ export class PublishingService implements OnModuleInit {
       throw error;
     }
 
-    await this.audit.log({ actorUserId: userId, action: AuditAction.LISTING_REPUBLISHED, entityType: AuditEntityType.LISTING, entityId: listingId, changes: { publicationCount: publications.length, jobsCreated: queuedJobCount } });
+    await this.audit.log({ actorUserId: user.id, action: AuditAction.LISTING_REPUBLISHED, entityType: AuditEntityType.LISTING, entityId: listingId, changes: { publicationCount: publications.length, jobsCreated: queuedJobCount } });
     return { accepted: true, listingId, queuedJobCount, publications: publications.map((publication) => ({ id: publication.id, portalId: publication.portalId, portalName: publication.portal.name, status: PublicationStatus.QUEUED })) };
   }
 
-  async getPublications(userId: string, listingId: string) {
-    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: userId }, select: { id: true } });
+  async getPublications(user: AuthenticatedUser, listingId: string) {
+    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: user.id }, select: { id: true } });
     if (!listing) throw new NotFoundException('İlan bulunamadı.');
     const publications = await this.prisma.listingPublication.findMany({
       where: { listingId },
       include: { portal: { select: { id: true, name: true } }, attempts: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } } },
       orderBy: { updatedAt: 'desc' },
     });
-    const accounts = await this.prisma.userPortalAccount.findMany({ where: { userId, portalId: { in: publications.map(({ portalId }) => portalId) } }, select: { id: true, portalId: true } });
+    const accounts = await this.prisma.userPortalAccount.findMany({ where: { userId: user.id, portalId: { in: publications.map(({ portalId }) => portalId) } }, select: { id: true, portalId: true } });
     const accountByPortal = new Map(accounts.map((account) => [account.portalId, account]));
     return publications.map((publication) => ({
       id: publication.id,

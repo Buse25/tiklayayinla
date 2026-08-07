@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthErrorMessage } from './auth-error-message';
+import { saveVerificationContext } from '../../lib/verification-context';
 
 export function LoginForm() {
   const router = useRouter();
@@ -37,11 +38,20 @@ export function LoginForm() {
       });
 
       if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        if ((payload as { code?: string }).code === 'EMAIL_NOT_VERIFIED') {
+          saveVerificationContext({
+            email: normalizedEmail,
+            verificationContext: (payload as { verificationContext?: string }).verificationContext,
+          });
+          router.push('/register/verify-email');
+          return;
+        }
         setError(
           response.status === 401
             ? 'E-posta adresi veya şifre hatalı.'
             : response.status === 403
-              ? 'Hesabınız aktif değil.'
+              ? 'Hesabınız doğrulanmamış. Doğrulama ekranına yönlendiriliyorsunuz.'
               : response.status === 422
                 ? 'Lütfen form alanlarını kontrol edin.'
                 : 'Giriş işlemi tamamlanamadı. Lütfen tekrar deneyin.',

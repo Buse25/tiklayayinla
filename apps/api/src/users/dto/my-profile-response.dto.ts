@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { MembershipStatus, OrganizationRole, OrganizationType, UserRole, UserStatus } from '@prisma/client';
+import { MembershipStatus, OrganizationApplicationStatus, OrganizationRole, OrganizationType, UserRole, UserStatus } from '@prisma/client';
 
 export class MyOrganizationMembershipSummaryDto {
   @ApiPropertyOptional({ format: 'uuid', nullable: true }) organizationId!: string | null;
@@ -20,4 +20,5 @@ export class MyProfileResponseDto {
   @ApiProperty({ example: '2026-08-04T10:00:00.000Z' }) createdAt!: Date;
   @ApiProperty({ example: '2026-08-04T10:15:00.000Z' }) updatedAt!: Date;
   @ApiProperty({ type: MyOrganizationMembershipSummaryDto }) organization!: MyOrganizationMembershipSummaryDto;
+  @ApiPropertyOptional({ enum: OrganizationApplicationStatus, nullable: true }) organizationApplicationStatus!: OrganizationApplicationStatus | null;
 }

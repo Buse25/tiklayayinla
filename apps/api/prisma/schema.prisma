@@ -23,6 +23,12 @@ enum OrganizationStatus {
   PASSIVE
 }
 
+enum OrganizationApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum OrganizationRole {
   OWNER
   MANAGER
@@ -115,6 +121,11 @@ enum AttemptStatus {
 }
 
 enum AuditAction {
+  EMAIL_VERIFICATION_CODE_SENT
+  EMAIL_VERIFICATION_SUCCEEDED
+  EMAIL_VERIFICATION_FAILED
+  EMAIL_VERIFICATION_RESENT
+  MAIL_DELIVERY_FAILED
   LISTING_CREATED
   LISTING_UPDATED
   LISTING_DELETED
@@ -130,6 +141,10 @@ enum AuditAction {
   IMPORT_CONFIRMED
   ORGANIZATION_CREATED
   ORGANIZATION_MEMBERSHIP_CREATED
+  ORGANIZATION_APPLICATION_CREATED
+  ORGANIZATION_APPLICATION_APPROVED
+  ORGANIZATION_APPLICATION_REJECTED
+  ORGANIZATION_APPLICATION_EDITED
 }
 
 enum AuditEntityType {
@@ -226,37 +241,98 @@ enum HousingType {
 }
 
 model User {
-  id            String         @id @default(uuid()) @db.Uuid
-  email         String         @unique
-  passwordHash  String
-  firstName     String
-  lastName      String
-  phone         String?
-  role          UserRole       @default(USER)
-  status        UserStatus     @default(ACTIVE)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  subscriptions Subscription[]
-  listings      Listing[]
-  portalAccounts UserPortalAccount[]
-  refreshTokens RefreshToken[]
-  organizationMemberships OrganizationMembership[]
+  id                               String                    @id @default(uuid()) @db.Uuid
+  email                            String                    @unique
+  passwordHash                     String
+  firstName                        String
+  lastName                         String
+  phone                            String?
+  role                             UserRole                  @default(USER)
+  status                           UserStatus                @default(ACTIVE)
+  emailVerified                    Boolean                   @default(false)
+  emailVerifiedAt                  DateTime?
+  createdAt                        DateTime                  @default(now())
+  updatedAt                        DateTime                  @updatedAt
+  subscriptions                    Subscription[]
+  listings                         Listing[]
+  portalAccounts                   UserPortalAccount[]
+  refreshTokens                    RefreshToken[]
+  organizationMemberships          OrganizationMembership[]
+  organizationApplications         OrganizationApplication[]
+  reviewedOrganizationApplications OrganizationApplication[] @relation("OrganizationApplicationReviewer")
+  emailVerificationCodes           EmailVerificationCode[]
 }
 
 model Organization {
-  id          String                   @id @default(uuid()) @db.Uuid
-  name        String
-  type        OrganizationType
-  country     String
-  city        String
-  district    String
-  address     String
-  phone       String?
-  taxNumber   String?
-  status      OrganizationStatus       @default(ACTIVE)
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
-  memberships OrganizationMembership[]
+  id                   String                   @id @default(uuid()) @db.Uuid
+  name                 String
+  type                 OrganizationType
+  country              String
+  city                 String
+  district             String
+  address              String
+  phone                String?
+  taxNumber            String?
+  taxOffice            String?
+  businessEmail        String?
+  authorizedPersonName String?
+  licenseNumber        String?
+  status               OrganizationStatus       @default(ACTIVE)
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  memberships          OrganizationMembership[]
+}
+
+model OrganizationApplication {
+  id                   String                        @id @default(uuid()) @db.Uuid
+  userId               String                        @db.Uuid
+  organizationName     String
+  organizationType     OrganizationType
+  country              String
+  city                 String
+  district             String
+  taxOffice            String?
+  vkn                  String?
+  authorizedPersonName String
+  companyPhone         String?
+  businessEmail        String?
+  address              String
+  licenseNumber        String?
+  status               OrganizationApplicationStatus @default(PENDING)
+  rejectionReason      String?                       @db.Text
+  reviewedById         String?                       @db.Uuid
+  reviewedAt           DateTime?
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+  user                 User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy           User?                         @relation("OrganizationApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([organizationType, status])
+  @@index([reviewedById, createdAt])
+}
+
+model EmailVerificationCode {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @db.Uuid
+  email             String
+  codeHash          String
+  expiresAt         DateTime
+  attemptCount      Int       @default(0)
+  maxAttempts       Int       @default(5)
+  resendAvailableAt DateTime
+  sentAt            DateTime  @default(now())
+  consumedAt        DateTime?
+  invalidatedAt     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
+  @@index([consumedAt])
+  @@index([invalidatedAt])
 }
 
 model OrganizationMembership {
@@ -275,13 +351,14 @@ model OrganizationMembership {
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
   tokenHash String
   expiresAt DateTime
   revokedAt DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, revokedAt])
   @@index([expiresAt])
 }
@@ -303,13 +380,13 @@ model AuditLog {
 }
 
 model Plan {
-  id             String         @id @default(uuid()) @db.Uuid
-  name           String         @unique
-  monthlyPrice   Decimal        @db.Decimal(12, 2)
-  listingLimit   Int
-  portalLimit    Int
-  isActive       Boolean        @default(true)
-  subscriptions  Subscription[]
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String         @unique
+  monthlyPrice  Decimal        @db.Decimal(12, 2)
+  listingLimit  Int
+  portalLimit   Int
+  isActive      Boolean        @default(true)
+  subscriptions Subscription[]
 }
 
 model Subscription {
@@ -321,34 +398,36 @@ model Subscription {
   expiresAt DateTime?
   user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan      Plan               @relation(fields: [planId], references: [id])
+
   @@index([userId, status])
   @@index([planId])
 }
 
 model Listing {
-  id           String          @id @default(uuid()) @db.Uuid
-  listingNo    String          @unique @default(cuid())
-  ownerId      String          @db.Uuid
-  title        String
-  description  String          @db.Text
-  price        Decimal         @db.Decimal(14, 2)
-  currency     Currency        @default(TRY)
-  listingType  ListingType
-  propertyType PropertyType
-  city         String
-  district     String
-  neighborhood String?
-  address      String
-  latitude     Decimal?        @db.Decimal(10, 7)
-  longitude    Decimal?        @db.Decimal(10, 7)
-  status       ListingStatus   @default(DRAFT)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  owner        User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  media        ListingMedia[]
-  publications ListingPublication[]
+  id                 String               @id @default(uuid()) @db.Uuid
+  listingNo          String               @unique @default(cuid())
+  ownerId            String               @db.Uuid
+  title              String
+  description        String               @db.Text
+  price              Decimal              @db.Decimal(14, 2)
+  currency           Currency             @default(TRY)
+  listingType        ListingType
+  propertyType       PropertyType
+  city               String
+  district           String
+  neighborhood       String?
+  address            String
+  latitude           Decimal?             @db.Decimal(10, 7)
+  longitude          Decimal?             @db.Decimal(10, 7)
+  status             ListingStatus        @default(DRAFT)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  owner              User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  media              ListingMedia[]
+  publications       ListingPublication[]
   residentialDetails ResidentialDetails?
-  features     ListingFeature[]
+  features           ListingFeature[]
+
   @@index([ownerId, status])
   @@index([city, district])
 }
@@ -382,14 +461,15 @@ model ResidentialDetails {
 }
 
 model FeatureDefinition {
-  id        String          @id @default(uuid()) @db.Uuid
-  code      String          @unique
+  id        String           @id @default(uuid()) @db.Uuid
+  code      String           @unique
   label     String
   category  FeatureCategory
-  isActive  Boolean         @default(true)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
   listings  ListingFeature[]
+
   @@index([category, isActive])
 }
 
@@ -398,41 +478,43 @@ model ListingFeature {
   featureDefinitionId String            @db.Uuid
   listing             Listing           @relation(fields: [listingId], references: [id], onDelete: Cascade)
   featureDefinition   FeatureDefinition @relation(fields: [featureDefinitionId], references: [id], onDelete: Restrict)
+
   @@id([listingId, featureDefinitionId])
   @@index([featureDefinitionId])
 }
 
 model ListingMedia {
-  id        String           @id @default(uuid()) @db.Uuid
-  listingId String           @db.Uuid
-  type      ListingMediaType @default(IMAGE)
-  url       String
-  storageKey String           @default("")
+  id           String           @id @default(uuid()) @db.Uuid
+  listingId    String           @db.Uuid
+  type         ListingMediaType @default(IMAGE)
+  url          String
+  storageKey   String           @default("")
   originalName String?
-  mimeType String             @default("image/webp")
-  fileSize Int                @default(0)
-  width Int?
-  height Int?
-  sortOrder Int              @default(0)
-  isCover   Boolean          @default(false)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  listing   Listing          @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  mimeType     String           @default("image/webp")
+  fileSize     Int              @default(0)
+  width        Int?
+  height       Int?
+  sortOrder    Int              @default(0)
+  isCover      Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  listing      Listing          @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
   @@index([listingId, sortOrder])
 }
 
 model Portal {
-  id           String                @id @default(uuid()) @db.Uuid
-  code         String                @unique
-  name         String
-  adapterKey   String                @unique
-  isActive     Boolean               @default(true)
-  connectionType String               @default("REST_API")
+  id               String               @id @default(uuid()) @db.Uuid
+  code             String               @unique
+  name             String
+  adapterKey       String               @unique
+  isActive         Boolean              @default(true)
+  connectionType   String               @default("REST_API")
   credentialSchema Json?
   documentationUrl String?
-  logoUrl      String?
-  userAccounts UserPortalAccount[]
-  publications ListingPublication[]
+  logoUrl          String?
+  userAccounts     UserPortalAccount[]
+  publications     ListingPublication[]
 }
 
 model UserPortalAccount {
@@ -445,38 +527,41 @@ model UserPortalAccount {
   lastError            String?          @db.Text
   user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   portal               Portal           @relation(fields: [portalId], references: [id], onDelete: Cascade)
+
   @@unique([userId, portalId])
   @@index([portalId, connectionStatus])
 }
 
 model ListingPublication {
-  id                String            @id @default(uuid()) @db.Uuid
-  listingId         String            @db.Uuid
-  portalId          String            @db.Uuid
-  status            PublicationStatus @default(PENDING)
+  id                String               @id @default(uuid()) @db.Uuid
+  listingId         String               @db.Uuid
+  portalId          String               @db.Uuid
+  status            PublicationStatus    @default(PENDING)
   externalListingId String?
   externalUrl       String?
-  lastError         String?           @db.Text
+  lastError         String?              @db.Text
   publishedAt       DateTime?
-  updatedAt         DateTime          @updatedAt
-  listing           Listing           @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  portal            Portal            @relation(fields: [portalId], references: [id], onDelete: Restrict)
+  updatedAt         DateTime             @updatedAt
+  listing           Listing              @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  portal            Portal               @relation(fields: [portalId], references: [id], onDelete: Restrict)
   attempts          PublicationAttempt[]
+
   @@unique([listingId, portalId])
   @@index([portalId, status])
 }
 
 model PublicationAttempt {
-  id                    String              @id @default(uuid()) @db.Uuid
-  listingPublicationId  String              @db.Uuid
-  action                PublicationAction
-  status                AttemptStatus       @default(STARTED)
-  attemptNumber         Int
-  requestPayload        Json?
-  responsePayload       Json?
-  errorMessage          String?             @db.Text
-  createdAt             DateTime            @default(now())
-  listingPublication    ListingPublication  @relation(fields: [listingPublicationId], references: [id], onDelete: Cascade)
+  id                   String             @id @default(uuid()) @db.Uuid
+  listingPublicationId String             @db.Uuid
+  action               PublicationAction
+  status               AttemptStatus      @default(STARTED)
+  attemptNumber        Int
+  requestPayload       Json?
+  responsePayload      Json?
+  errorMessage         String?            @db.Text
+  createdAt            DateTime           @default(now())
+  listingPublication   ListingPublication @relation(fields: [listingPublicationId], references: [id], onDelete: Cascade)
+
   @@unique([listingPublicationId, action, attemptNumber])
   @@index([listingPublicationId, createdAt])
 }

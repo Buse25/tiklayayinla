@@ -31,26 +31,26 @@ export class ListingMediaController {
   @ApiCreatedResponse({ type: [ListingMediaResponseDto] })
   @ApiUnprocessableEntityResponse({ description: 'Geçersiz dosya, boyut veya görsel limiti' })
   @ApiTooManyRequestsResponse({ description: 'Dosya yükleme için bir dakika içinde en fazla 20 istek gönderilebilir.' })
-  upload(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) listingId: string, @UploadedFiles() files: Express.Multer.File[] = []) { return this.media.upload(user.id, listingId, files); }
+  upload(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) listingId: string, @UploadedFiles() files: Express.Multer.File[] = []) { return this.media.upload(user, listingId, files); }
 
   @Get()
   @ApiOperation({ summary: 'İlan görsellerini sıralı olarak getirir' })
   @ApiOkResponse({ type: [ListingMediaResponseDto] })
-  findAll(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) listingId: string) { return this.media.findAll(user.id, listingId); }
+  findAll(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) listingId: string) { return this.media.findAll(user, listingId); }
 
   @Patch('reorder')
   @ApiOperation({ summary: 'İlanın tüm görsellerinin sırasını tek transaction içinde günceller' })
   @ApiOkResponse({ type: [ListingMediaResponseDto] })
-  reorder(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) listingId: string, @Body() dto: ReorderListingMediaDto) { return this.media.reorder(user.id, listingId, dto.mediaIds); }
+  reorder(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) listingId: string, @Body() dto: ReorderListingMediaDto) { return this.media.reorder(user, listingId, dto.mediaIds); }
 
   @Patch(':mediaId/cover')
   @ApiOperation({ summary: 'Görseli kapak olarak atar' })
   @ApiOkResponse({ type: ListingMediaResponseDto })
-  setCover(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) listingId: string, @Param('mediaId', new ParseUUIDPipe({ version: '4' })) mediaId: string) { return this.media.setCover(user.id, listingId, mediaId); }
+  setCover(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) listingId: string, @Param('mediaId', new ParseUUIDPipe({ version: '4' })) mediaId: string) { return this.media.setCover(user, listingId, mediaId); }
 
   @Delete(':mediaId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Görseli ve yerel dosyasını siler; kapak silinirse sıradakini kapak yapar' })
   @ApiNoContentResponse()
-  async remove(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) listingId: string, @Param('mediaId', new ParseUUIDPipe({ version: '4' })) mediaId: string): Promise<void> { await this.media.remove(user.id, listingId, mediaId); }
+  async remove(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) listingId: string, @Param('mediaId', new ParseUUIDPipe({ version: '4' })) mediaId: string): Promise<void> { await this.media.remove(user, listingId, mediaId); }
 }

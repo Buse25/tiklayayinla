@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createInitialMapping, duplicatedSources } from '../../../lib/listings-import/normalizer';
 import { parseImportFile } from '../../../lib/listings-import/parser';
 import { maxImportFileSizeBytes, type ColumnMapping, type ImportStep, type ParsedImportFile } from '../../../lib/listings-import/types';
-import { missingRequiredMappings, validateImport } from '../../../lib/listings-import/validator';
+import { buildValidationResult, missingRequiredMappings, validateImport } from '../../../lib/listings-import/validator';
+import { authenticatedFetch } from '../../../lib/api-client';
+import { canUsePropertyListings, sectorRestrictionMessage, type OrganizationType } from '../../../lib/sector';
 import { ColumnMappingStep } from './column-mapping-step';
 import { FileUploadStep } from './file-upload-step';
 import { ImportSummaryStep } from './import-summary-step';
@@ -20,9 +22,30 @@ export function ListingsImportPage() {
   const [error, setError] = useState('');
   const [reading, setReading] = useState(false);
   const [onlyErrors, setOnlyErrors] = useState(false);
-  const validation = useMemo(() => parsed ? validateImport(parsed, mapping) : null, [mapping, parsed]);
+  const [organizationType, setOrganizationType] = useState<OrganizationType>(undefined);
+  const sectorAllowed = canUsePropertyListings(organizationType);
+  const initialValidation = useMemo(() => parsed ? validateImport(parsed, mapping) : null, [mapping, parsed]);
+  const [validation, setValidation] = useState<ReturnType<typeof buildValidationResult> | null>(null);
+
+  useEffect(() => {
+    setValidation(initialValidation);
+  }, [initialValidation]);
+
+  useEffect(() => {
+    let active = true;
+    void authenticatedFetch('users/me').then(async (response) => {
+      if (!response.ok) return;
+      const profile = await response.json() as { organizationType?: OrganizationType };
+      if (active) setOrganizationType(profile.organizationType ?? null);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   async function chooseFile(file: File) {
+    if (!sectorAllowed) {
+      setError(sectorRestrictionMessage(organizationType));
+      return;
+    }
     setError('');
     if (!/\.(csv|xlsx)$/i.test(file.name)) { setError('Sadece .csv ve .xlsx dosyaları desteklenir.'); return; }
     if (file.size > maxImportFileSizeBytes) { setError(`Dosya en fazla ${Math.round(maxImportFileSizeBytes / 1024 / 1024)} MB olabilir.`); return; }
@@ -50,6 +73,7 @@ export function ListingsImportPage() {
 
   function next() {
     setError('');
+    if (!sectorAllowed) { setError(sectorRestrictionMessage(organizationType)); return; }
     if (step === 0 && !parsed) { setError('Devam etmek için önce bir CSV veya XLSX dosyası seçin.'); return; }
     if (step === 1) {
       const missing = missingRequiredMappings(mapping);
@@ -73,17 +97,18 @@ export function ListingsImportPage() {
         <h1 className="mt-1 text-3xl font-bold">Toplu İlan İçe Aktar</h1>
         <p className="mt-2 text-sm text-slate-600">CSV veya XLSX dosyasını okuyup kolon eşleştirme, doğrulama ve normalize payload ön izlemesi hazırlayın.</p>
       </header>
+      {!sectorAllowed && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{sectorRestrictionMessage(organizationType)}</div>}
       <ol className="mt-6 grid gap-2 md:grid-cols-4">{steps.map((label, index) => <li className={`rounded-xl px-3 py-3 text-center text-sm font-semibold ${index === step ? 'bg-teal-700 text-white' : index < step ? 'bg-teal-100 text-teal-800' : 'bg-slate-200 text-slate-600'}`} key={label}>{index + 1}. {label}</li>)}</ol>
       {error && <p className="mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <div className="mt-6">
         {step === 0 && <FileUploadStep error={error} onFile={chooseFile} onRemove={reset} parsed={parsed} reading={reading} />}
         {step === 1 && parsed && <ColumnMappingStep mapping={mapping} onChange={(field, header) => setMapping((current) => ({ ...current, [field]: header }))} parsed={parsed} />}
-        {step === 2 && validation && <ValidationPreviewStep onlyErrors={onlyErrors} onToggleOnlyErrors={() => setOnlyErrors((current) => !current)} rows={validation.rows} summary={validation.summary} />}
+        {step === 2 && validation && <ValidationPreviewStep mapping={mapping} onlyErrors={onlyErrors} onToggleOnlyErrors={() => setOnlyErrors((current) => !current)} onRowsChange={(rows) => setValidation(buildValidationResult(rows))} rows={validation.rows} summary={validation.summary} />}
         {step === 3 && validation && <ImportSummaryStep mapping={mapping} onBack={back} onReset={reset} payloads={validation.payloads} rows={validation.rows} summary={validation.summary} />}
       </div>
       {step < 3 && <footer className="mt-6 flex items-center justify-between">
-        <button className="rounded-lg px-4 py-3 font-semibold text-slate-700 disabled:opacity-40" disabled={step === 0 || reading} onClick={back} type="button">Geri</button>
-        <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50" disabled={reading || (step === 0 && !parsed)} onClick={next} type="button">Devam et</button>
+        <button className="rounded-lg px-4 py-3 font-semibold text-slate-700 disabled:opacity-40" disabled={step === 0 || reading || !sectorAllowed} onClick={back} type="button">Geri</button>
+        <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50" disabled={reading || (step === 0 && !parsed) || !sectorAllowed} onClick={next} type="button">Devam et</button>
       </footer>}
     </div>
   </main>;

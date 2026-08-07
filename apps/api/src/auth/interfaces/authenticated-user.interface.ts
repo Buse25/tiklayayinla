@@ -1,4 +1,4 @@
-import type { MembershipStatus, OrganizationRole, OrganizationType, UserRole, UserStatus } from '@prisma/client';
+import type { MembershipStatus, OrganizationApplicationStatus, OrganizationRole, OrganizationType, UserRole, UserStatus } from '@prisma/client';
 
 export interface AuthenticatedUser {
   id: string;
@@ -20,4 +20,5 @@ export interface AuthenticatedUser {
   organizationType: OrganizationType | null;
   membershipRole: OrganizationRole | null;
   membershipStatus: MembershipStatus | null;
+  organizationApplicationStatus: OrganizationApplicationStatus | null;
 }

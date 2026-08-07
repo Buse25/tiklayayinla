@@ -9,7 +9,9 @@ const refreshTokenMaxAge = 30 * 24 * 60 * 60;
 export type AuthTokens = { accessToken: string; refreshToken: string };
 
 export function apiUrl(path: string): string {
-  const baseUrl = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL;
+  const baseUrl = process.env.API_URL
+    ?? process.env.NEXT_PUBLIC_API_URL
+    ?? (process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : undefined);
   if (!baseUrl) throw new Error('API_URL veya NEXT_PUBLIC_API_URL tanımlı değil.');
   return `${baseUrl.replace(/\/$/, '')}${path}`;
 }

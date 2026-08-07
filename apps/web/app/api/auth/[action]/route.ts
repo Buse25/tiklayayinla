@@ -1,13 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, apiUrl, clearSessionCookies, setSessionCookies, type AuthTokens } from '../../../../src/lib/auth-session';
+import { REFRESH_TOKEN_COOKIE, apiUrl, clearSessionCookies, setSessionCookies, type AuthTokens } from '../../../../src/lib/auth-session';
 
 export const runtime = 'nodejs';
 
-const supportedActions = new Set(['login', 'register', 'refresh', 'logout']);
+const sessionActions = new Set(['login', 'refresh', 'verify-email']);
+const postOnlyActions = new Set(['login', 'register', 'refresh', 'logout', 'verify-email', 'resend-verification']);
+
+export async function GET(request: NextRequest, { params }: { params: { action: string } }) {
+  if (params.action !== 'verification-status') return NextResponse.json({ message: 'Bulunamadı.' }, { status: 404 });
+
+  const verificationContext = request.headers.get('x-verification-context') ?? undefined;
+  const email = request.headers.get('x-verification-email') ?? undefined;
+
+  try {
+    const upstream = await fetch(apiUrl('/auth/verification-status'), {
+      method: 'GET',
+      headers: {
+        ...(verificationContext ? { 'x-verification-context': verificationContext } : {}),
+        ...(email ? { 'x-verification-email': email } : {}),
+      },
+      cache: 'no-store',
+    });
+    const payload = await upstream.json();
+    return NextResponse.json(payload, { status: upstream.status });
+  } catch {
+    return NextResponse.json({ message: 'Kimlik doğrulama servisine ulaşılamadı.' }, { status: 503 });
+  }
+}
 
 export async function POST(request: NextRequest, { params }: { params: { action: string } }) {
   const action = params.action;
-  if (!supportedActions.has(action)) return NextResponse.json({ message: 'Bulunamadı.' }, { status: 404 });
+  if (!postOnlyActions.has(action)) return NextResponse.json({ message: 'Bulunamadı.' }, { status: 404 });
 
   const body = action === 'refresh' || action === 'logout'
     ? { refreshToken: request.cookies.get(REFRESH_TOKEN_COOKIE)?.value }
@@ -36,14 +59,18 @@ export async function POST(request: NextRequest, { params }: { params: { action:
     const payload = await upstream.json();
     if (!upstream.ok) {
       const response = NextResponse.json(payload, { status: upstream.status });
-      if (action === 'refresh') clearSessionCookies(response);
+      if (action === 'refresh' || action === 'verify-email') clearSessionCookies(response);
       return response;
     }
 
-    const tokens = payload as AuthTokens;
-    const response = NextResponse.json({ user: payload.user });
-    setSessionCookies(response, tokens);
-    return response;
+    if (sessionActions.has(action)) {
+      const tokens = payload as AuthTokens;
+      const response = NextResponse.json({ user: payload.user });
+      setSessionCookies(response, tokens);
+      return response;
+    }
+
+    return NextResponse.json(payload, { status: upstream.status });
   } catch {
     if (action === 'logout') {
       const response = NextResponse.json({ message: 'Çıkış oturumu yerelde temizlendi.' }, { status: 503 });

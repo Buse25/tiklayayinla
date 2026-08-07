@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+
+<html class="light" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>tiklayayinla.com - Kayıt Ol</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Shared Tailwind Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "on-error": "#ffffff",
+                "on-surface-variant": "#3c494a",
+                "on-tertiary-fixed-variant": "#41474e",
+                "on-background": "#191c1d",
+                "error-container": "#ffdad6",
+                "background": "#f8fafb",
+                "secondary-container": "#dae2fd",
+                "primary-fixed-dim": "#3cdae2",
+                "on-primary-fixed-variant": "#004f53",
+                "tertiary": "#595f66",
+                "secondary": "#565e74",
+                "error": "#ba1a1a",
+                "tertiary-fixed": "#dde3eb",
+                "surface-container-high": "#e6e8e9",
+                "on-error-container": "#93000a",
+                "on-primary": "#ffffff",
+                "secondary-fixed": "#dae2fd",
+                "on-secondary": "#ffffff",
+                "on-surface": "#191c1d",
+                "surface-container-low": "#f2f4f5",
+                "surface-container-highest": "#e1e3e4",
+                "surface": "#f8fafb",
+                "inverse-on-surface": "#eff1f2",
+                "primary": "#00696e",
+                "outline-variant": "#bbc9ca",
+                "on-secondary-fixed-variant": "#3f465c",
+                "inverse-surface": "#2e3132",
+                "tertiary-container": "#acb2b9",
+                "surface-container-lowest": "#ffffff",
+                "surface-container": "#eceeef",
+                "on-tertiary-container": "#3e454b",
+                "tertiary-fixed-dim": "#c1c7cf",
+                "on-secondary-fixed": "#131b2e",
+                "surface-dim": "#d8dadb",
+                "surface-tint": "#00696e",
+                "primary-container": "#00c4cc",
+                "secondary-fixed-dim": "#bec6e0",
+                "primary-fixed": "#63f7ff",
+                "on-primary-container": "#004c4f",
+                "on-primary-fixed": "#002021",
+                "inverse-primary": "#3cdae2",
+                "surface-bright": "#f8fafb",
+                "on-tertiary": "#ffffff",
+                "outline": "#6c7a7a",
+                "surface-variant": "#e1e3e4",
+                "on-secondary-container": "#5c647a",
+                "on-tertiary-fixed": "#161c22"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+            },
+            "spacing": {
+                "md": "24px",
+                "base": "4px",
+                "xs": "8px",
+                "xl": "48px",
+                "margin": "32px",
+                "sm": "16px",
+                "lg": "32px",
+                "gutter": "24px"
+            },
+            "fontFamily": {
+                "label-md": ["Inter"],
+                "headline-xl": ["Inter"],
+                "body-md": ["Inter"],
+                "headline-lg-mobile": ["Inter"],
+                "headline-lg": ["Inter"],
+                "body-lg": ["Inter"],
+                "label-sm": ["Inter"],
+                "headline-md": ["Inter"]
+            },
+            "fontSize": {
+                "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                "label-sm": ["11px", {"lineHeight": "14px", "fontWeight": "500"}],
+                "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .form-input-focus:focus-within {
+            border-color: #00c4cc;
+            box-shadow: 0 0 0 3px rgba(0, 196, 204, 0.2);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col items-center overflow-x-hidden">
+<!-- Top App Bar (Transactional Variant) -->
+<header class="w-full h-16 px-4 flex items-center justify-between bg-surface dark:bg-surface-dim sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<button aria-label="Geri" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors active:scale-95 duration-100">
+<span class="material-symbols-outlined text-on-surface">arrow_back</span>
+</button>
+<h1 class="text-headline-md font-headline-md font-bold text-primary">Hesap Oluştur</h1>
+</div>
+<div class="text-primary font-bold text-headline-md hidden sm:block">tiklayayinla.com</div>
+</header>
+<!-- Content Canvas -->
+<main class="w-full max-w-md px-6 py-8 flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+<!-- Brand Identity / Intro Section -->
+<div class="flex flex-col gap-2">
+<h2 class="text-headline-lg-mobile font-headline-lg-mobile text-on-surface">Gayrimenkul Portföyünüzü Yönetmeye Başlayın</h2>
+<p class="text-body-md text-on-surface-variant">Profesyonel emlak ağına katılmak için formu doldurarak kayıt işleminizi tamamlayın.</p>
+</div>
+<!-- Registration Form -->
+<form class="flex flex-col gap-6" onsubmit="return false;">
+<!-- Full Name -->
+<div class="flex flex-col gap-2">
+<label class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider" for="full_name">Ad Soyad</label>
+<div class="relative group">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline">person</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-3 pl-11 pr-4 text-body-lg focus:outline-none transition-all form-input-focus placeholder:text-outline" id="full_name" placeholder="Adınız ve Soyadınız" type="text"/>
+</div>
+</div>
+<!-- Email -->
+<div class="flex flex-col gap-2">
+<label class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider" for="email">E-posta</label>
+<div class="relative group">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline">mail</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-3 pl-11 pr-4 text-body-lg focus:outline-none transition-all form-input-focus placeholder:text-outline" id="email" placeholder="example@gmail.com" type="email"/>
+</div>
+</div>
+<!-- Phone Number -->
+<div class="flex flex-col gap-2">
+<label class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider" for="phone">Telefon Numarası</label>
+<div class="relative group">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline">call</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-3 pl-11 pr-4 text-body-lg focus:outline-none transition-all form-input-focus placeholder:text-outline" id="phone" placeholder="0 (5xx) xxx xx xx" type="tel"/>
+</div>
+</div>
+<!-- Password -->
+<div class="flex flex-col gap-2">
+<label class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider" for="password">Şifre</label>
+<div class="relative group">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline">lock</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-3 pl-11 pr-12 text-body-lg focus:outline-none transition-all form-input-focus placeholder:text-outline" id="password" placeholder="••••••••" type="password"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+<p class="text-label-sm font-label-sm text-outline">En az 8 karakter, harf ve rakam içermelidir.</p>
+</div>
+<!-- Terms and Conditions -->
+<div class="flex items-start gap-3 py-2">
+<div class="flex items-center h-5">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary-container bg-surface-container-lowest transition-all" id="terms" type="checkbox"/>
+</div>
+<label class="text-body-md text-on-surface-variant leading-tight cursor-pointer" for="terms">
+<span class="font-medium text-primary">Kullanım Koşullarını</span> ve <span class="font-medium text-primary">Gizlilik Politikasını</span> kabul ediyorum.
+                </label>
+</div>
+<!-- Register Button -->
+<button class="w-full py-4 bg-primary-container text-on-primary-container rounded-xl font-headline-md text-headline-md shadow-sm hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-200">
+                Kayıt Ol
+            </button>
+</form>
+<!-- Login Redirect -->
+<div class="flex flex-col items-center gap-4 py-4">
+<div class="flex items-center gap-2 text-body-md text-on-surface-variant">
+<span>Zaten hesabınız var mı?</span>
+<a class="text-primary font-bold hover:underline decoration-2 underline-offset-4 transition-all" href="#">Giriş Yap</a>
+</div>
+<div class="w-full flex items-center gap-4 py-4">
+<div class="h-px bg-outline-variant grow"></div>
+<span class="text-label-md font-label-md text-outline">VEYA</span>
+<div class="h-px bg-outline-variant grow"></div>
+</div>
+<!-- Social Sign Up Options (Contextual addition for high-end feel) -->
+<div class="w-full flex gap-4">
+<button class="flex-1 flex items-center justify-center gap-2 py-3 border border-outline-variant rounded-xl bg-surface-container-lowest hover:bg-surface-container-low transition-colors active:scale-95">
+<img class="w-5 h-5" data-alt="Official Google logo with vibrant red, yellow, green and blue brand colors used for secure social authentication on a minimalist white background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAuiMVzc-fZWjso2QkHWbQ79KSAhxVHCS7QMF0W8azP8rlPYx0UlzmUdlgzJ6r1-XbCFMOqPyTW-9hTLhGRSAO9pu2hBEsNnE7_N3B0Ww5ZrLfdIi0Pdl0TMmvvfA_0KG7A4TBM7p0sN9HvgGVW1D5GhnURyygThK0LX8j1USPXlfrdpHeLhMwbpI1IJnOMb6Xd5rmCYOOp2cep4W7rSvQd-AnvmNon6SDMAlscibp2taEqVc6Oz8Au"/>
+<span class="text-label-md font-label-md text-on-surface">Google</span>
+</button>
+<button class="flex-1 flex items-center justify-center gap-2 py-3 border border-outline-variant rounded-xl bg-surface-container-lowest hover:bg-surface-container-low transition-colors active:scale-95">
+<img class="w-5 h-5" data-alt="Apple logo in a sleek minimalist slate gray color used for secure biometric sign-up and authentication processes." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkOjb8LuDtcuw8nVnrOEW5VtI6CdF26PvjTu5p6165gyWHm8wOVMDkn10A2oNLJoU5a7-8FKx3BVIPpfOcTlkzF16HrwpQGf7llY1ZTQxwFJM_sKjepOvF5WFTBwhK-hDUeGMjcxUcDXvvfGjgXjjC42R0GbOg9cZh8kPP-P6eMNeTPwBn2Tja2FaHRNWm8uoGgWqfCJusCShY_S3SktrhAZvgs2JAzoRFIb22CHcScixQ_SL87NeS"/>
+<span class="text-label-md font-label-md text-on-surface">Apple</span>
+</button>
+</div>
+</div>
+</main>
+<!-- Decorative Atmosphere (Bottom Blur) -->
+<div class="fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent pointer-events-none z-0"></div>
+<script>
+        // Micro-interaction for password toggle
+        const toggleBtn = document.querySelector('button span:contains("visibility")');
+        if(toggleBtn) {
+            toggleBtn.parentElement.addEventListener('click', () => {
+                const input = document.getElementById('password');
+                const isPassword = input.type === 'password';
+                input.type = isPassword ? 'text' : 'password';
+                toggleBtn.textContent = isPassword ? 'visibility_off' : 'visibility';
+            });
+        }
+
+        // Custom selector helper for the text logic above as :contains isn't standard CSS
+        document.querySelectorAll('button').forEach(btn => {
+            const span = btn.querySelector('.material-symbols-outlined');
+            if (span && span.textContent === 'visibility') {
+                btn.addEventListener('click', () => {
+                    const input = document.getElementById('password');
+                    const isPassword = input.getAttribute('type') === 'password';
+                    input.setAttribute('type', isPassword ? 'text' : 'password');
+                    span.textContent = isPassword ? 'visibility_off' : 'visibility';
+                });
+            }
+        });
+    </script>
+</body></html>

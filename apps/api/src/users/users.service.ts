@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { MyProfileResponseDto } from './dto/my-profile-response.dto';
-import { AuditAction, AuditEntityType, MembershipStatus, Prisma } from '@prisma/client';
+import { AuditAction, AuditEntityType, MembershipStatus, OrganizationApplicationStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 
 const profileSelect = {
@@ -22,19 +22,29 @@ export class UsersService {
 
   async getMyProfile(userId: string): Promise<MyProfileResponseDto> {
     const profile = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: profileSelect });
-    return toProfileResponse(profile);
+    const latestApp = await this.prisma.organizationApplication.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { status: true },
+    });
+    return toProfileResponse(profile, latestApp?.status ?? null);
   }
 
   async updateMyProfile(userId: string, dto: UpdateMyProfileDto): Promise<MyProfileResponseDto> {
     const profile = await this.prisma.user.update({ where: { id: userId }, data: dto, select: profileSelect });
     if (Object.keys(dto).length) await this.audit.log({ actorUserId: userId, action: AuditAction.USER_PROFILE_UPDATED, entityType: AuditEntityType.USER, entityId: userId, changes: { changedFields: Object.keys(dto) } });
-    return toProfileResponse(profile);
+    const latestApp = await this.prisma.organizationApplication.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { status: true },
+    });
+    return toProfileResponse(profile, latestApp?.status ?? null);
   }
 }
 
 type ProfileRecord = Prisma.UserGetPayload<{ select: typeof profileSelect }>;
 
-function toProfileResponse(profile: ProfileRecord): MyProfileResponseDto {
+function toProfileResponse(profile: ProfileRecord, applicationStatus?: OrganizationApplicationStatus | null): MyProfileResponseDto {
   const membership = profile.organizationMemberships[0];
   const { organizationMemberships, ...user } = profile;
   return {
@@ -46,5 +56,6 @@ function toProfileResponse(profile: ProfileRecord): MyProfileResponseDto {
       membershipRole: membership.role,
       membershipStatus: membership.status,
     } : { organizationId: null, organizationName: null, organizationType: null, membershipRole: null, membershipStatus: null },
+    organizationApplicationStatus: applicationStatus ?? null,
   };
 }

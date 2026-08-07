@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+
+<html class="light" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Emlak İlan Sihirbazı | tiklayayinla.com</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .step-active {
+            @apply text-primary font-bold border-b-2 border-primary;
+        }
+        .portal-card:hover {
+            box-shadow: 0px 4px 20px rgba(15, 23, 42, 0.05);
+        }
+        .gradient-button {
+            background: linear-gradient(135deg, #00696e 0%, #3cdae2 100%);
+        }
+        /* Custom Checkbox Styling */
+        .custom-checkbox:checked {
+            background-color: #00696e;
+            border-color: #00696e;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed": "#dde3eb",
+                        "on-primary-fixed": "#002021",
+                        "on-primary-container": "#004c4f",
+                        "surface-variant": "#e1e3e4",
+                        "outline": "#6c7a7a",
+                        "tertiary-container": "#acb2b9",
+                        "error": "#ba1a1a",
+                        "primary-fixed-dim": "#3cdae2",
+                        "surface-container-high": "#e6e8e9",
+                        "on-tertiary": "#ffffff",
+                        "inverse-on-surface": "#eff1f2",
+                        "inverse-primary": "#3cdae2",
+                        "surface-dim": "#d8dadb",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-container": "#3e454b",
+                        "on-surface-variant": "#3c494a",
+                        "on-background": "#191c1d",
+                        "surface-container": "#eceeef",
+                        "secondary": "#565e74",
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "on-primary": "#ffffff",
+                        "primary": "#00696e",
+                        "on-surface": "#191c1d",
+                        "on-error": "#ffffff",
+                        "on-primary-fixed-variant": "#004f53",
+                        "inverse-surface": "#2e3132",
+                        "primary-container": "#00c4cc",
+                        "outline-variant": "#bbc9ca",
+                        "surface-tint": "#00696e",
+                        "surface": "#f8fafb",
+                        "secondary-fixed": "#dae2fd",
+                        "surface-container-low": "#f2f4f5",
+                        "on-tertiary-fixed-variant": "#41474e",
+                        "tertiary": "#595f66",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#63f7ff",
+                        "error-container": "#ffdad6",
+                        "surface-container-highest": "#e1e3e4",
+                        "background": "#f8fafb",
+                        "on-secondary-container": "#5c647a",
+                        "tertiary-fixed-dim": "#c1c7cf",
+                        "on-secondary-fixed": "#131b2e",
+                        "surface-bright": "#f8fafb",
+                        "secondary-container": "#dae2fd",
+                        "on-tertiary-fixed": "#161c22"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "sm": "16px",
+                        "margin": "32px",
+                        "lg": "32px",
+                        "md": "24px",
+                        "xs": "8px",
+                        "xl": "48px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-xl": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "label-sm": ["11px", {"lineHeight": "14px", "fontWeight": "500"}],
+                        "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container">
+<!-- Top AppBar (from JSON blueprint) -->
+<header class="bg-surface border-b border-outline-variant fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin h-16">
+<div class="flex items-center gap-sm">
+<button class="hover:bg-surface-container-low transition-colors duration-200 p-2 rounded-full active:scale-95 duration-100">
+<span class="material-symbols-outlined text-primary">arrow_back</span>
+</button>
+<h1 class="text-headline-md font-headline-md font-bold text-primary">İlan Sihirbazı</h1>
+</div>
+<div class="hidden md:flex items-center gap-md">
+<div class="text-label-md font-label-md text-secondary">Hızlı Erişim</div>
+<button class="bg-primary text-on-primary px-sm py-2 rounded-lg font-label-md hover:opacity-90 transition-opacity">Quick Publish</button>
+</div>
+</header>
+<main class="mt-16 mb-24 md:mb-0 min-h-screen pt-sm px-4 md:px-margin max-w-5xl mx-auto">
+<!-- Progress Indicator -->
+<div class="w-full flex justify-between items-center mb-xl">
+<div class="flex-1 flex flex-col items-center gap-xs">
+<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold">1</div>
+<span class="text-label-md font-label-md text-primary">İlan Detayları</span>
+</div>
+<div class="flex-1 h-[2px] bg-outline-variant mb-5"></div>
+<div class="flex-1 flex flex-col items-center gap-xs">
+<div class="w-10 h-10 rounded-full bg-surface-container-high text-secondary flex items-center justify-center font-bold">2</div>
+<span class="text-label-md font-label-md text-secondary">Portallar</span>
+</div>
+<div class="flex-1 h-[2px] bg-outline-variant mb-5"></div>
+<div class="flex-1 flex flex-col items-center gap-xs">
+<div class="w-10 h-10 rounded-full bg-surface-container-high text-secondary flex items-center justify-center font-bold">3</div>
+<span class="text-label-md font-label-md text-secondary">Onay</span>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Section 1: Property Details -->
+<div class="lg:col-span-8 space-y-md">
+<div class="bg-surface-container-lowest p-md rounded-xl shadow-sm border border-outline-variant">
+<h2 class="text-headline-sm font-headline-md mb-md flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">home_work</span> İlan Detayları
+                    </h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-sm">
+<div class="md:col-span-2">
+<label class="text-label-md font-label-md text-secondary mb-1 block">İlan Başlığı</label>
+<input class="w-full p-3 border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" placeholder="Örn: Boğaz Manzaralı Lüks Rezidans" type="text"/>
+</div>
+<div>
+<label class="text-label-md font-label-md text-secondary mb-1 block">Fiyat (TL)</label>
+<div class="relative">
+<input class="w-full p-3 pl-10 border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" placeholder="0.00" type="number"/>
+<span class="material-symbols-outlined absolute left-3 top-3 text-outline">payments</span>
+</div>
+</div>
+<div>
+<label class="text-label-md font-label-md text-secondary mb-1 block">Oda Sayısı</label>
+<select class="w-full p-3 border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all appearance-none bg-white">
+<option>1+0</option>
+<option>1+1</option>
+<option>2+1</option>
+<option>3+1</option>
+<option>4+1</option>
+</select>
+</div>
+<div class="md:col-span-2">
+<label class="text-label-md font-label-md text-secondary mb-1 block">Konum</label>
+<div class="relative">
+<input class="w-full p-3 pl-10 border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" placeholder="İl, İlçe, Mahalle" type="text"/>
+<span class="material-symbols-outlined absolute left-3 top-3 text-outline">location_on</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Photo Upload Area -->
+<div class="bg-surface-container-lowest p-md rounded-xl shadow-sm border border-outline-variant">
+<h2 class="text-headline-sm font-headline-md mb-md flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">add_a_photo</span> Görseller
+                    </h2>
+<div class="border-2 border-dashed border-outline-variant rounded-xl p-xl flex flex-col items-center justify-center text-center hover:bg-surface-container-low transition-colors cursor-pointer group">
+<div class="w-16 h-16 bg-primary-container/20 rounded-full flex items-center justify-center mb-sm group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-4xl">cloud_upload</span>
+</div>
+<p class="text-body-lg font-headline-md text-on-surface">Fotoğraf Ekle</p>
+<p class="text-label-sm font-label-sm text-secondary mt-1">Sürükle ve bırak veya dosyalarından seç (Max 20 MB)</p>
+</div>
+<!-- Preview Placeholders -->
+<div class="grid grid-cols-4 gap-sm mt-md">
+<div class="aspect-square bg-surface-container rounded-lg border border-outline-variant overflow-hidden relative group">
+<img class="w-full h-full object-cover" data-alt="A bright and airy luxury apartment interior with floor-to-ceiling windows showing a modern city skyline. High-end minimalist furniture in neutral tones sits on a polished light wood floor. Soft cinematic lighting highlights the clean architectural lines of the property. Professional real estate photography style, wide-angle lens, sharp focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAgFFQQ9084KRrMOTI7cecw6Py3_AVZQEOIf7yzq9Uz3m2IXOy26ByI3MuysV2bvOR-ccyLPSgLPjk-XRwbyvStMgH2ULIkelBuxS8hyttzSj-8nP2J51iRUZx2CX7TQePNeEapFW6w_ROiAvA6mzo6Tm9SdUooWONHQHohqde-9SUGDDt9sz7gszi3mgTLxAMld9cORdDo7bhTIEYy0JIqEryFIU6etn1iIiZ9T-92WyMHNQ81-aXU"/>
+<button class="absolute top-1 right-1 bg-error text-on-error rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm">close</span>
+</button>
+</div>
+<div class="aspect-square bg-surface-container rounded-lg border border-outline-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-outline">image</span>
+</div>
+<div class="aspect-square bg-surface-container rounded-lg border border-outline-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-outline">image</span>
+</div>
+<div class="aspect-square bg-surface-container rounded-lg border border-outline-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-outline">image</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Section 2: Portal Selection & Action -->
+<div class="lg:col-span-4 space-y-md">
+<div class="bg-surface-container-lowest p-md rounded-xl shadow-sm border border-outline-variant sticky top-20">
+<h2 class="text-headline-sm font-headline-md mb-md flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">hub</span> Portallar Listesi
+                    </h2>
+<div class="space-y-sm mb-lg">
+<div class="flex items-center justify-between p-3 border border-outline-variant rounded-lg portal-card transition-all">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 bg-blue-500 rounded flex items-center justify-center text-white font-bold">S</div>
+<span class="text-body-md font-headline-md">Sahibinden</span>
+</div>
+<input checked="" class="form-checkbox h-5 w-5 rounded text-primary focus:ring-primary custom-checkbox" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between p-3 border border-outline-variant rounded-lg portal-card transition-all">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 bg-orange-500 rounded flex items-center justify-center text-white font-bold">H</div>
+<span class="text-body-md font-headline-md">Hepsiemlak</span>
+</div>
+<input checked="" class="form-checkbox h-5 w-5 rounded text-primary focus:ring-primary custom-checkbox" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between p-3 border border-outline-variant rounded-lg portal-card transition-all">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 bg-red-600 rounded flex items-center justify-center text-white font-bold">E</div>
+<span class="text-body-md font-headline-md">Emlakjet</span>
+</div>
+<input class="form-checkbox h-5 w-5 rounded text-primary focus:ring-primary custom-checkbox" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between p-3 border border-outline-variant rounded-lg portal-card transition-all border-dashed">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 bg-sky-900 rounded flex items-center justify-center text-white font-bold">R</div>
+<span class="text-body-md font-headline-md">Rightmove (Global)</span>
+</div>
+<input class="form-checkbox h-5 w-5 rounded text-primary focus:ring-primary custom-checkbox" type="checkbox"/>
+</div>
+</div>
+<div class="pt-md border-t border-outline-variant">
+<div class="flex justify-between mb-sm">
+<span class="text-secondary text-body-md">Seçili Kanal:</span>
+<span class="text-on-surface font-bold">2 Portal</span>
+</div>
+<div class="flex justify-between mb-lg">
+<span class="text-secondary text-body-md">Hizmet Bedeli:</span>
+<span class="text-on-surface font-bold text-headline-md">₺0.00 <span class="text-label-sm font-normal text-secondary line-through">₺250</span></span>
+</div>
+<button class="w-full gradient-button text-on-primary py-4 px-6 rounded-xl font-headline-md flex items-center justify-center gap-sm shadow-lg hover:shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all duration-200" id="publishBtn">
+<span class="material-symbols-outlined" id="btnIcon">sync</span>
+<span id="btnText">Her Yerde Yayınla ve Senkronize Et</span>
+</button>
+<p class="text-center text-label-sm text-secondary mt-4 flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-xs">verified_user</span> 
+                            256-bit SSL Güvenli Altyapı
+                        </p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Map Preview Canvas (Asymmetric Layout element) -->
+<section class="max-w-5xl mx-auto px-4 md:px-margin mt-lg mb-xl">
+<div class="relative h-[300px] w-full rounded-2xl overflow-hidden shadow-sm border border-outline-variant">
+<div class="w-full h-full bg-surface-container-high flex items-center justify-center" data-location="Istanbul, Turkey" style="">
+<!-- Fallback Map Image or Placeholder -->
+<div class="absolute inset-0 bg-cover bg-center grayscale opacity-50" data-alt="A minimalist technical map drawing of a modern city grid with clean lines and turquoise highlights. The style is professional and data-driven, representing high-end real estate software. Soft grey background with white streets and subtle cyan indicators for property locations. Aerial perspective, architectural precision, clean tech aesthetic." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBgDVeNheHsNC4ofy1ebOkF8cjSIz6GxKlBriid1Yvqi3PEVrd-voXCUyBUBXISYVnMo5VQ_fZCT_bEAydhaU-4FOJV8Rw-YYLwMNONhfRs-RxsE1kc2sjrI22L0_UNV-h_zLpPMOOCXCXY5IEB6Uzpsmg-s6AaZER53HPiO34zYVHKQtnGXB7GkT1qQgnadPw-KOqPCblVHUpZAskJcNq-zbPsu9B7pdna1Jo8_3pWDSUWOPD1QpUu')"></div>
+<div class="relative bg-white/90 backdrop-blur-md p-md rounded-xl shadow-lg flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary text-3xl">push_pin</span>
+<div>
+<p class="font-bold text-on-surface">Konum Doğrulandı</p>
+<p class="text-label-sm text-secondary">Beşiktaş, İstanbul</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Bottom Navigation for Mobile (from JSON blueprint) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-surface border-t border-outline-variant shadow-lg lg:hidden">
+<div class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-label-sm font-label-sm">Dashboard</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-xl px-3 py-1 scale-90 duration-150">
+<span class="material-symbols-outlined">list_alt</span>
+<span class="text-label-sm font-label-sm">Listings</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">hub</span>
+<span class="text-label-sm font-label-sm">Portals</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-label-sm font-label-sm">Analytics</span>
+</div>
+</nav>
+<script>
+        document.getElementById('publishBtn').addEventListener('click', function() {
+            const btn = this;
+            const icon = document.getElementById('btnIcon');
+            const text = document.getElementById('btnText');
+            
+            icon.classList.add('animate-spin');
+            text.innerText = 'Yayınlanıyor...';
+            btn.style.opacity = '0.8';
+            
+            setTimeout(() => {
+                icon.classList.remove('animate-spin');
+                icon.innerText = 'check_circle';
+                text.innerText = 'Başarıyla Yayınlandı!';
+                btn.classList.remove('gradient-button');
+                btn.classList.add('bg-green-600');
+                
+                setTimeout(() => {
+                    icon.innerText = 'sync';
+                    text.innerText = 'Her Yerde Yayınla ve Senkronize Et';
+                    btn.classList.add('gradient-button');
+                    btn.classList.remove('bg-green-600');
+                    btn.style.opacity = '1';
+                }, 3000);
+            }, 2000);
+        });
+
+        // Simple scroll interaction for header
+        window.addEventListener('scroll', () => {
+            const header = document.querySelector('header');
+            if (window.scrollY > 10) {
+                header.classList.add('shadow-md');
+            } else {
+                header.classList.remove('shadow-md');
+            }
+        });
+    </script>
+</body></html>

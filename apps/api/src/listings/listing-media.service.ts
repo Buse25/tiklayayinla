@@ -2,9 +2,11 @@ import { Inject, Injectable, Logger, NotFoundException, UnprocessableEntityExcep
 import { ListingMedia, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import sharp from 'sharp';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { STORAGE_SERVICE, type StorageService } from '../storage/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListingMediaResponseDto } from './dto/listing-media-response.dto';
+import { assertPropertySectorAccess } from './sector-guard';
 
 const MAX_IMAGES_PER_LISTING = 30;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -15,8 +17,9 @@ export class ListingMediaService {
   private readonly logger = new Logger(ListingMediaService.name);
   constructor(private readonly prisma: PrismaService, @Inject(STORAGE_SERVICE) private readonly storage: StorageService) {}
 
-  async upload(ownerId: string, listingId: string, files: Express.Multer.File[]): Promise<ListingMediaResponseDto[]> {
-    await this.ensureOwned(ownerId, listingId);
+  async upload(user: AuthenticatedUser, listingId: string, files: Express.Multer.File[]): Promise<ListingMediaResponseDto[]> {
+    assertPropertySectorAccess(user, 'media');
+    await this.ensureOwned(user.id, listingId);
     if (!files.length) throw new UnprocessableEntityException('En az bir görsel yüklenmelidir.');
     if (files.some(file => !SUPPORTED_MIME_TYPES.has(file.mimetype))) throw new UnprocessableEntityException('Yalnızca JPEG, PNG ve WebP görseller yüklenebilir.');
     if (files.some(file => file.size > MAX_FILE_SIZE)) throw new UnprocessableEntityException('Her görsel en fazla 10 MB olabilir.');
@@ -40,28 +43,32 @@ export class ListingMediaService {
     }
   }
 
-  async findAll(ownerId: string, listingId: string): Promise<ListingMediaResponseDto[]> {
-    await this.ensureOwned(ownerId, listingId);
+  async findAll(user: AuthenticatedUser, listingId: string): Promise<ListingMediaResponseDto[]> {
+    assertPropertySectorAccess(user, 'media');
+    await this.ensureOwned(user.id, listingId);
     return (await this.prisma.listingMedia.findMany({ where: { listingId }, orderBy: { sortOrder: 'asc' } })).map(toMediaResponse);
   }
 
-  async reorder(ownerId: string, listingId: string, mediaIds: string[]): Promise<ListingMediaResponseDto[]> {
-    await this.ensureOwned(ownerId, listingId);
+  async reorder(user: AuthenticatedUser, listingId: string, mediaIds: string[]): Promise<ListingMediaResponseDto[]> {
+    assertPropertySectorAccess(user, 'media');
+    await this.ensureOwned(user.id, listingId);
     const media = await this.prisma.listingMedia.findMany({ where: { listingId }, select: { id: true } });
     if (media.length !== mediaIds.length || mediaIds.some(id => !media.some(item => item.id === id))) throw new UnprocessableEntityException('mediaIds ilandaki tüm ve yalnızca bu ilanın görsellerini içermelidir.');
     await this.prisma.$transaction(mediaIds.map((id, index) => this.prisma.listingMedia.update({ where: { id }, data: { sortOrder: index } })));
-    return this.findAll(ownerId, listingId);
+    return this.findAll(user, listingId);
   }
 
-  async setCover(ownerId: string, listingId: string, mediaId: string): Promise<ListingMediaResponseDto> {
-    await this.ensureOwned(ownerId, listingId);
+  async setCover(user: AuthenticatedUser, listingId: string, mediaId: string): Promise<ListingMediaResponseDto> {
+    assertPropertySectorAccess(user, 'media');
+    await this.ensureOwned(user.id, listingId);
     const media = await this.getOwnedMedia(listingId, mediaId);
     const updated = await this.prisma.$transaction(async tx => { await tx.listingMedia.updateMany({ where: { listingId }, data: { isCover: false } }); return tx.listingMedia.update({ where: { id: media.id }, data: { isCover: true } }); });
     return toMediaResponse(updated);
   }
 
-  async remove(ownerId: string, listingId: string, mediaId: string): Promise<void> {
-    await this.ensureOwned(ownerId, listingId);
+  async remove(user: AuthenticatedUser, listingId: string, mediaId: string): Promise<void> {
+    assertPropertySectorAccess(user, 'media');
+    await this.ensureOwned(user.id, listingId);
     const media = await this.getOwnedMedia(listingId, mediaId);
     await this.prisma.$transaction(async tx => {
       await tx.listingMedia.delete({ where: { id: media.id } });

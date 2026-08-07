@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthErrorMessage } from './auth-error-message';
+import { saveVerificationContext } from '../../lib/verification-context';
 
 type FieldProps = {
   id: string;
@@ -87,7 +88,15 @@ export function RegisterForm() {
         return;
       }
 
-      router.push('/listings');
+      const payload = await response.json().catch(() => ({}));
+      saveVerificationContext({
+        email: normalizedEmail,
+        verificationContext: (payload as { verificationContext?: string }).verificationContext,
+        expiresAt: (payload as { expiresAt?: string | null }).expiresAt,
+        resendAvailableAt: (payload as { resendAvailableAt?: string | null }).resendAvailableAt,
+        mailDeliveryFailed: (payload as { mailDeliveryFailed?: boolean }).mailDeliveryFailed,
+      });
+      router.push('/register/verify-email');
       router.refresh();
     } catch {
       setError('Sunucuya ulaşılamadı. Lütfen tekrar deneyin.');

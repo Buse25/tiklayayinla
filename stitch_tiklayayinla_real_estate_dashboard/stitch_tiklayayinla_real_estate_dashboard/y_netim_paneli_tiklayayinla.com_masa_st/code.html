@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+
+<html class="light" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>tiklayayinla.com - Emlak Yönetim Paneli</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Shared Component Styling & Logic -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary-container": "#5c647a",
+                    "surface-tint": "#00696e",
+                    "surface-variant": "#e1e3e4",
+                    "on-tertiary-fixed": "#161c22",
+                    "on-tertiary": "#ffffff",
+                    "surface-dim": "#d8dadb",
+                    "on-surface-variant": "#3c494a",
+                    "background": "#f8fafb",
+                    "surface-container-low": "#f2f4f5",
+                    "secondary-fixed-dim": "#bec6e0",
+                    "primary-fixed-dim": "#3cdae2",
+                    "secondary": "#565e74",
+                    "outline": "#6c7a7a",
+                    "on-error-container": "#93000a",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-container": "#3e454b",
+                    "on-secondary": "#ffffff",
+                    "secondary-fixed": "#dae2fd",
+                    "outline-variant": "#bbc9ca",
+                    "tertiary-fixed-dim": "#c1c7cf",
+                    "on-primary-fixed-variant": "#004f53",
+                    "inverse-on-surface": "#eff1f2",
+                    "primary-container": "#00c4cc",
+                    "inverse-primary": "#3cdae2",
+                    "on-surface": "#191c1d",
+                    "tertiary-container": "#acb2b9",
+                    "surface": "#f8fafb",
+                    "on-secondary-fixed": "#131b2e",
+                    "on-primary-container": "#004c4f",
+                    "on-error": "#ffffff",
+                    "on-background": "#191c1d",
+                    "tertiary": "#595f66",
+                    "on-tertiary-fixed-variant": "#41474e",
+                    "on-primary": "#ffffff",
+                    "inverse-surface": "#2e3132",
+                    "secondary-container": "#dae2fd",
+                    "primary": "#00696e",
+                    "surface-container": "#eceeef",
+                    "on-secondary-fixed-variant": "#3f465c",
+                    "surface-container-high": "#e6e8e9",
+                    "on-primary-fixed": "#002021",
+                    "error": "#ba1a1a",
+                    "tertiary-fixed": "#dde3eb",
+                    "primary-fixed": "#63f7ff",
+                    "surface-container-highest": "#e1e3e4",
+                    "surface-bright": "#f8fafb"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "sm": "16px",
+                    "gutter": "24px",
+                    "margin": "32px",
+                    "lg": "32px",
+                    "base": "4px",
+                    "xs": "8px",
+                    "xl": "48px",
+                    "md": "24px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Inter"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "headline-xl": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "headline-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-sm": ["11px", {"lineHeight": "14px", "fontWeight": "500"}],
+                    "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-nav-indicator {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background-color: #00696e;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface">
+<!-- Fixed Left Sidebar (SideNavBar) -->
+<aside class="w-[260px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] flex flex-col gap-y-4 py-8 z-50">
+<div class="px-6 mb-8 flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">real_estate_agent</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">tiklayayinla.com</h1>
+<p class="text-[10px] uppercase tracking-widest text-secondary font-semibold">Emlak Yönetim Paneli</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1 px-4">
+<!-- Active: Panel -->
+<a class="relative flex items-center gap-3 px-4 py-3 rounded-lg bg-primary/5 text-primary border-l-4 border-primary font-semibold transition-colors duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body-md text-body-md">Panel</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-low transition-colors duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">maps_home_work</span>
+<span class="font-body-md text-body-md">İlanlar</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-low transition-colors duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">sync_alt</span>
+<span class="font-body-md text-body-md">Portallar</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-low transition-colors duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-body-md text-body-md">Analizler</span>
+</a>
+</nav>
+<div class="mt-auto px-4">
+<button class="w-full bg-primary-container text-on-primary-container py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-sm">
+<span class="material-symbols-outlined">add_circle</span>
+<span class="font-body-md text-body-md">Hızlı İlan Yayınla</span>
+</button>
+</div>
+</aside>
+<!-- Top AppBar -->
+<header class="h-16 fixed top-0 right-0 left-[260px] bg-surface-container-lowest border-b border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] flex items-center justify-between px-md z-40">
+<div class="flex-1 max-w-xl">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2 text-body-md focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Müşteri, İlan No veya Portal ara..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-all relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low transition-all">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="h-8 w-px bg-outline-variant mx-2"></div>
+<div class="flex items-center gap-3 pl-2">
+<div class="text-right hidden sm:block">
+<p class="text-body-md font-semibold text-on-surface">Can Yılmaz</p>
+<p class="text-label-sm text-secondary">Premium Danışman</p>
+</div>
+<div class="w-10 h-10 rounded-full border-2 border-primary/20 p-0.5">
+<img class="w-full h-full rounded-full object-cover" data-alt="A professional headshot of a Turkish real estate consultant in a well-lit modern office setting. He is wearing a crisp white shirt and a dark blazer, smiling confidently. The lighting is bright and natural, coming from a large window. The background features high-end architectural details and a soft-focus office environment that reflects a successful corporate SaaS aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPcxHUAI7YYimNWNzyb1uC3L9gP7YShCRnLzzFSg31tdbgzJFUN7u1jW01gCr7LgzHVYj3sotaLI5KYp4C4bbf2cc7r3XZQge9cNhrlac2Y_WIFLck2AfSfBqzmgWn5Tz14Z68Es3BHKQmuohgyR1co3dTzmlBYgNA1V3gf-B1s5VqEkUdvxiVboIdVwUrvpVl8ToYzeRm8kPeG08b0x0uEqOwtFcmzIHSHtaqAuO-kQ_c3BAzUeZd"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="ml-[260px] pt-16 min-h-screen p-md">
+<!-- Header Section -->
+<section class="mb-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Merhaba, Gayrimenkul Danışmanı</h2>
+<p class="text-secondary font-body-md">Bugün portallarında toplam 24 aktif ilan ve 8 yeni aday müşterin var.</p>
+</div>
+<button class="bg-primary-container text-on-primary-container px-lg py-3 rounded-xl font-bold flex items-center gap-2 hover:scale-[1.02] transition-transform shadow-lg shadow-primary-container/20">
+<span class="material-symbols-outlined">rocket_launch</span>
+<span class="font-headline-md text-headline-md">Hızlı İlan Yayınla</span>
+</button>
+</section>
+<!-- Ana İlan İstatistikleri -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-lg">
+<!-- Aktif İlanlar -->
+<div class="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)]">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+</div>
+<span class="text-primary font-semibold text-label-md flex items-center gap-1 bg-primary/5 px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +12%
+                    </span>
+</div>
+<h3 class="text-secondary font-label-md mb-1">Aktif İlanlar</h3>
+<p class="text-headline-xl font-headline-xl text-on-surface">24</p>
+<div class="mt-4 h-1 bg-surface-container-low rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[75%]"></div>
+</div>
+</div>
+<!-- Aday Müşteriler -->
+<div class="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)]">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-secondary-container rounded-lg text-on-secondary-container">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">groups</span>
+</div>
+<span class="text-primary font-semibold text-label-md flex items-center gap-1 bg-primary/5 px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +8%
+                    </span>
+</div>
+<h3 class="text-secondary font-label-md mb-1">Aday Müşteriler</h3>
+<p class="text-headline-xl font-headline-xl text-on-surface">186</p>
+<div class="mt-4 flex gap-1 items-end h-8">
+<div class="bg-primary/20 w-full h-[40%] rounded-t-sm"></div>
+<div class="bg-primary/20 w-full h-[60%] rounded-t-sm"></div>
+<div class="bg-primary/20 w-full h-[45%] rounded-t-sm"></div>
+<div class="bg-primary/20 w-full h-[80%] rounded-t-sm"></div>
+<div class="bg-primary w-full h-[100%] rounded-t-sm"></div>
+</div>
+</div>
+<!-- Toplam Görüntülenme -->
+<div class="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)]">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-tertiary-fixed rounded-lg text-on-tertiary-fixed-variant">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">visibility</span>
+</div>
+<div class="w-24 h-8">
+<svg class="w-full h-full stroke-primary fill-none stroke-[3]" viewbox="0 0 100 40">
+<path d="M0,35 Q10,10 20,30 T40,20 T60,35 T80,10 T100,25"></path>
+</svg>
+</div>
+</div>
+<h3 class="text-secondary font-label-md mb-1">Toplam Görüntülenme</h3>
+<p class="text-headline-xl font-headline-xl text-on-surface">12.4k</p>
+<p class="text-label-sm text-secondary mt-2">Son 30 gün içinde</p>
+</div>
+</section>
+<!-- Content Grid: Portal Sync & Leads -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Portal Senkronizasyon Durumu -->
+<section class="lg:col-span-8">
+<div class="flex items-center justify-between mb-sm">
+<h3 class="font-headline-md text-headline-md text-on-surface">Portal Senkronizasyon Durumu</h3>
+<button class="text-primary font-semibold text-body-md flex items-center gap-1 hover:underline">
+<span class="material-symbols-outlined text-[18px]">refresh</span> Tümünü Güncelle
+                    </button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Emlakjet -->
+<div class="bg-surface-container-lowest p-sm rounded-xl border border-outline-variant flex items-center gap-4 hover:border-primary transition-all group">
+<div class="w-12 h-12 bg-surface-container-low rounded-lg flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[32px]">home</span>
+</div>
+<div class="flex-1">
+<div class="flex items-center justify-between">
+<h4 class="font-semibold text-body-lg">Emlakjet</h4>
+<span class="flex items-center gap-1 text-[10px] text-primary font-bold uppercase tracking-wider">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span> Aktif
+                                </span>
+</div>
+<p class="text-label-sm text-secondary">2dk önce senkronize edildi</p>
+</div>
+</div>
+<!-- Sahibinden -->
+<div class="bg-surface-container-lowest p-sm rounded-xl border border-outline-variant flex items-center gap-4 hover:border-primary transition-all group">
+<div class="w-12 h-12 bg-surface-container-low rounded-lg flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[32px]">public</span>
+</div>
+<div class="flex-1">
+<div class="flex items-center justify-between">
+<h4 class="font-semibold text-body-lg">Sahibinden</h4>
+<span class="flex items-center gap-1 text-[10px] text-primary font-bold uppercase tracking-wider">
+<span class="w-2 h-2 rounded-full bg-primary"></span> Aktif
+                                </span>
+</div>
+<p class="text-label-sm text-secondary">15dk önce senkronize edildi</p>
+</div>
+</div>
+<!-- Hepsiemlak -->
+<div class="bg-surface-container-lowest p-sm rounded-xl border border-outline-variant flex items-center gap-4 hover:border-outline transition-all opacity-80 group">
+<div class="w-12 h-12 bg-surface-container-low rounded-lg flex items-center justify-center text-secondary group-hover:bg-secondary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[32px]">location_on</span>
+</div>
+<div class="flex-1">
+<div class="flex items-center justify-between">
+<h4 class="font-semibold text-body-lg">Hepsiemlak</h4>
+<span class="flex items-center gap-1 text-[10px] text-outline font-bold uppercase tracking-wider">
+<span class="w-2 h-2 rounded-full bg-outline"></span> Beklemede
+                                </span>
+</div>
+<p class="text-label-sm text-secondary">Kimlik doğrulaması gerekiyor</p>
+</div>
+</div>
+<!-- Rightmove -->
+<div class="bg-surface-container-lowest p-sm rounded-xl border border-outline-variant flex items-center gap-4 hover:border-primary transition-all group">
+<div class="w-12 h-12 bg-surface-container-low rounded-lg flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[32px]">language</span>
+</div>
+<div class="flex-1">
+<div class="flex items-center justify-between">
+<h4 class="font-semibold text-body-lg">Rightmove</h4>
+<span class="flex items-center gap-1 text-[10px] text-on-tertiary-container font-bold uppercase tracking-wider italic">
+<span class="w-2 h-2 rounded-full bg-on-tertiary-container animate-ping"></span> Sync...
+                                </span>
+</div>
+<p class="text-label-sm text-secondary">İngiltere pazarı aktarılıyor</p>
+</div>
+</div>
+</div>
+<!-- Async Visual Element -->
+<div class="mt-8 relative overflow-hidden rounded-2xl bg-surface-container-highest h-48 group">
+
+<div class="relative z-10 p-lg flex flex-col justify-center h-full max-w-md">
+<h4 class="font-headline-md text-headline-md mb-2">Akıllı Eşleştirme Motoru</h4>
+<p class="text-body-md text-secondary mb-4">Portallardan gelen veriler yapay zeka ile analiz edilerek en doğru alıcılarla eşleştiriliyor.</p>
+<button class="bg-white text-primary border border-primary px-4 py-2 rounded-lg font-semibold w-fit hover:bg-primary hover:text-white transition-all">Detayları Gör</button>
+</div>
+</div>
+</section>
+<!-- Son Aday Müşteriler -->
+<section class="lg:col-span-4">
+<div class="flex items-center justify-between mb-sm">
+<h3 class="font-headline-md text-headline-md text-on-surface">Son Aday Müşteriler</h3>
+<a class="text-label-md text-primary hover:underline" href="#">Tümünü Gör</a>
+</div>
+<div class="space-y-4">
+<!-- Lead Card 1 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant shadow-sm hover:shadow-md transition-all">
+<div class="flex items-center gap-3 mb-3">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold">ME</div>
+<div>
+<h5 class="font-semibold text-body-md">Mehmet Ersoy</h5>
+<p class="text-[11px] text-secondary">10 dakika önce</p>
+</div>
+<div class="ml-auto">
+<span class="bg-primary/10 text-primary text-[10px] px-2 py-1 rounded-full font-bold">YENİ</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-2 rounded-lg mb-3">
+<p class="text-[12px] text-secondary italic">"Boğaz manzaralı daire ile ilgileniyorum, bugün görebilir miyim?"</p>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-primary text-white py-2 rounded-lg text-body-md font-semibold flex items-center justify-center gap-1 hover:opacity-90">
+<span class="material-symbols-outlined text-[18px]">phone</span> Ara
+                            </button>
+<button class="flex-1 bg-surface-container-low text-on-surface py-2 rounded-lg text-body-md font-semibold flex items-center justify-center gap-1 hover:bg-surface-container-high">
+<span class="material-symbols-outlined text-[18px]">mail</span> E-posta
+                            </button>
+</div>
+</div>
+<!-- Lead Card 2 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant shadow-sm hover:shadow-md transition-all">
+<div class="flex items-center gap-3 mb-3">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed font-bold">AK</div>
+<div>
+<h5 class="font-semibold text-body-md">Ayşe Karan</h5>
+<p class="text-[11px] text-secondary">1 saat önce</p>
+</div>
+</div>
+<div class="mb-3">
+<p class="text-[12px] font-medium text-on-surface mb-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">apartment</span> Nişantaşı Residence - 4+1
+                            </p>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-primary text-white py-2 rounded-lg text-body-md font-semibold flex items-center justify-center gap-1 hover:opacity-90">
+<span class="material-symbols-outlined text-[18px]">phone</span> Ara
+                            </button>
+<button class="flex-1 bg-surface-container-low text-on-surface py-2 rounded-lg text-body-md font-semibold flex items-center justify-center gap-1 hover:bg-surface-container-high">
+<span class="material-symbols-outlined text-[18px]">mail</span> E-posta
+                            </button>
+</div>
+</div>
+<!-- Lead Card 3 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant shadow-sm hover:shadow-md transition-all opacity-70">
+<div class="flex items-center gap-3 mb-3">
+<div class="w-10 h-10 rounded-full bg-outline-variant flex items-center justify-center text-on-surface-variant font-bold">BT</div>
+<div>
+<h5 class="font-semibold text-body-md">Burak Tekin</h5>
+<p class="text-[11px] text-secondary">Dün</p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 border border-outline-variant text-on-surface py-2 rounded-lg text-body-md font-semibold flex items-center justify-center gap-1 hover:bg-surface-container-low">
+<span class="material-symbols-outlined text-[18px]">history</span> Geçmiş
+                            </button>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<script>
+        // Simple micro-interaction for sidebar links
+        document.querySelectorAll('aside nav a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                document.querySelectorAll('aside nav a').forEach(l => {
+                    l.classList.remove('bg-primary/5', 'text-primary', 'border-l-4', 'border-primary', 'font-semibold');
+                    l.classList.add('text-secondary');
+                });
+                this.classList.add('bg-primary/5', 'text-primary', 'border-l-4', 'border-primary', 'font-semibold');
+                this.classList.remove('text-secondary');
+            });
+        });
+
+        // Add small hover animations to stat cards
+        document.querySelectorAll('section.grid > div').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-4px)';
+                card.style.transition = 'transform 0.3s ease';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0)';
+            });
+        });
+    </script>
+</body></html>

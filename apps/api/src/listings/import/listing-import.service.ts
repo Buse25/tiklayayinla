@@ -1,11 +1,13 @@
 import { BadRequestException, HttpException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { AuditAction, AuditEntityType } from '@prisma/client';
+import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { ListingsService } from '../listings.service';
 import { CsvListingParserService } from './csv-listing-parser.service';
 import { CsvListingValidatorService, type ValidImportRow } from './csv-listing-validator.service';
 import type { ListingImportConfirmResponseDto, ListingImportErrorDto, ListingImportPreviewResponseDto } from './dto/listing-import.dto';
 import { AuditService } from '../../audit/audit.service';
+import { assertPropertySectorAccess } from '../sector-guard';
 
 type Preview = { userId: string; expiresAt: number; totalRows: number; validRows: ValidImportRow[]; invalidRows: number; duplicateRows: number; errors: ListingImportErrorDto[] };
 
@@ -32,23 +34,24 @@ export class ListingImportService {
     return { previewToken, summary: { totalRows: rows.length, validRows: result.validRows.length, invalidRows, duplicateRows: result.duplicateRows }, validRows: result.validRows.slice(0, 20).map((row) => row.summary), errors: result.errors.slice(0, 200) };
   }
 
-  async confirm(userId: string, previewToken: string): Promise<ListingImportConfirmResponseDto> {
+  async confirm(user: AuthenticatedUser, previewToken: string): Promise<ListingImportConfirmResponseDto> {
     this.clearExpired();
     const preview = this.previews.get(previewToken);
     if (!preview) throw new BadRequestException('Preview token geçersiz veya süresi dolmuş.');
-    if (preview.userId !== userId) throw new UnauthorizedException('Bu preview token başka bir kullanıcıya ait.');
+    if (preview.userId !== user.id) throw new UnauthorizedException('Bu preview token başka bir kullanıcıya ait.');
+    assertPropertySectorAccess(user, 'import');
     this.previews.delete(previewToken);
     const createdListings: Array<{ row: number; id: string; listingNo: string }> = []; const errors: ListingImportErrorDto[] = [];
     for (let offset = 0; offset < preview.validRows.length; offset += 100) {
       const batch = preview.validRows.slice(offset, offset + 100);
-      const results = await Promise.allSettled(batch.map(async (row) => ({ row: row.row, listing: await this.listings.create(userId, row.dto) })));
+      const results = await Promise.allSettled(batch.map(async (row) => ({ row: row.row, listing: await this.listings.create(user, row.dto) })));
       for (const [index, result] of results.entries()) {
         if (result.status === 'fulfilled') createdListings.push({ row: result.value.row, id: result.value.listing.id, listingNo: result.value.listing.listingNo });
         else errors.push(createFailureError(batch[index].row, result.reason));
       }
     }
     const response = { summary: { totalRows: preview.totalRows, createdRows: createdListings.length, failedRows: errors.length, skippedRows: preview.totalRows - preview.validRows.length }, createdListings, errors: errors.slice(0, 200) };
-    if (createdListings.length) await this.audit.log({ actorUserId: userId, action: AuditAction.IMPORT_CONFIRMED, entityType: AuditEntityType.IMPORT_BATCH, entityId: randomUUID(), changes: { createdRows: response.summary.createdRows, failedRows: response.summary.failedRows, skippedRows: response.summary.skippedRows } });
+    if (createdListings.length) await this.audit.log({ actorUserId: user.id, action: AuditAction.IMPORT_CONFIRMED, entityType: AuditEntityType.IMPORT_BATCH, entityId: randomUUID(), changes: { createdRows: response.summary.createdRows, failedRows: response.summary.failedRows, skippedRows: response.summary.skippedRows } });
     return response;
   }
 

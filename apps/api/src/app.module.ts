@@ -7,7 +7,9 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ListingsModule } from './listings/listings.module';
 import { PortalsModule } from './portals/portals.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 import { PublishingModule } from './publishing/publishing.module';
+import { MailModule } from './mail/mail.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { StorageModule } from './storage/storage.module';
 import { DashboardModule } from './dashboard/dashboard.module';
@@ -30,11 +32,19 @@ import { AuditContextMiddleware } from './audit/audit-context.middleware';
         PORTAL_CREDENTIALS_KEY: Joi.string().pattern(/^[a-fA-F0-9]{64}$/).required(),
         RABBITMQ_URL: Joi.string().uri({ scheme: ['amqp', 'amqps'] }).required(),
         PORT: Joi.number().port().required(),
+        SMTP_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
+        SMTP_HOST: Joi.string().when('SMTP_ENABLED', { is: true, then: Joi.required() }),
+        SMTP_PORT: Joi.number().port().when('SMTP_ENABLED', { is: true, then: Joi.required() }),
+        SMTP_SECURE: Joi.boolean().truthy('true').falsy('false').when('SMTP_ENABLED', { is: true, then: Joi.required() }),
+        SMTP_USER: Joi.string().when('SMTP_ENABLED', { is: true, then: Joi.required() }),
+        SMTP_PASSWORD: Joi.string().when('SMTP_ENABLED', { is: true, then: Joi.required() }),
+        SMTP_FROM_EMAIL: Joi.string().email().when('SMTP_ENABLED', { is: true, then: Joi.required() }),
+        SMTP_FROM_NAME: Joi.string().when('SMTP_ENABLED', { is: true, then: Joi.required() }),
       }).unknown(true),
       validationOptions: { abortEarly: false },
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
-    PrismaModule, AuditModule, RedisModule, StorageModule, AuthModule, UsersModule, ListingsModule, PortalsModule, PublishingModule, DashboardModule, HealthModule,
+    PrismaModule, AuditModule, RedisModule, StorageModule, MailModule, AuthModule, UsersModule, OrganizationsModule, ListingsModule, PortalsModule, PublishingModule, DashboardModule, HealthModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -1,5 +1,14 @@
 import { importFields, normalizeBoolean, normalizeEnum, parseLocalizedNumber } from './normalizer';
-import type { ColumnMapping, ImportIssue, ListingImportPayload, ParsedImportFile, RowStatus, ValidatedImportRow, ValidationSummary } from './types';
+import type {
+  ColumnMapping,
+  ImportIssue,
+  ImportRow,
+  ListingImportPayload,
+  ParsedImportFile,
+  RowStatus,
+  ValidatedImportRow,
+  ValidationSummary,
+} from './types';
 
 const residentialFields = new Set(importFields.filter((field) => field.group === 'Konut Detayı').map((field) => field.key));
 
@@ -20,6 +29,12 @@ function label(fieldKey: string) {
   return importFields.find((field) => field.key === fieldKey)?.label ?? fieldKey;
 }
 
+function acceptedValues(fieldKey: string) {
+  const field = importFields.find((item) => item.key === fieldKey);
+  const options = field?.options?.map((option) => option.label).filter(Boolean) ?? [];
+  return options.length ? ` Kabul edilen değerler: ${options.join(', ')}.` : '';
+}
+
 function normalizeRow(source: Record<string, string>, mapping: ColumnMapping): { payload?: ListingImportPayload; issues: ImportIssue[] } {
   const issues: ImportIssue[] = [];
   const flat: Record<string, string | number | boolean> = {};
@@ -33,7 +48,7 @@ function normalizeRow(source: Record<string, string>, mapping: ColumnMapping): {
     }
     if (field.type === 'number') {
       const number = parseLocalizedNumber(raw);
-      if (number === null || number <= 0 && !['buildingAge', 'bathroomCount', 'monthlyFee'].includes(field.key)) {
+      if (number === null || (number <= 0 && !['buildingAge', 'bathroomCount', 'monthlyFee'].includes(field.key))) {
         issues.push(issue(field.key, 'INVALID_NUMBER', `${field.label} geçerli bir sayı olmalıdır.`));
         continue;
       }
@@ -42,7 +57,7 @@ function normalizeRow(source: Record<string, string>, mapping: ColumnMapping): {
     } else if (field.type === 'enum') {
       const normalized = normalizeEnum(raw, field.options ?? []);
       if (!normalized) {
-        issues.push(issue(field.key, 'INVALID_ENUM', `${field.label} geçerli bir değer olmalıdır.`));
+        issues.push(issue(field.key, 'INVALID_ENUM', `${field.label} geçerli bir değer olmalıdır.${acceptedValues(field.key)}`));
         continue;
       }
       if (residentialFields.has(field.key)) residentialDetails[field.key] = normalized;
@@ -83,7 +98,35 @@ function normalizeRow(source: Record<string, string>, mapping: ColumnMapping): {
   return { payload, issues };
 }
 
-export function validateImport(parsed: ParsedImportFile, mapping: ColumnMapping): { rows: ValidatedImportRow[]; summary: ValidationSummary; payloads: ListingImportPayload[] } {
+export function validateImportRow(row: ImportRow, mapping: ColumnMapping): ValidatedImportRow {
+  const { payload, issues } = normalizeRow(row.values, mapping);
+  const hasError = issues.some((item) => item.code !== 'DUPLICATE_REFERENCE');
+  const status: RowStatus = hasError ? 'ERROR' : issues.length ? 'WARNING' : 'VALID';
+  return { rowNumber: row.rowNumber, source: row.values, status, issues, payload: hasError ? undefined : payload };
+}
+
+export function buildValidationResult(rows: ValidatedImportRow[]) {
+  return {
+    rows,
+    summary: summarizeValidatedRows(rows),
+    payloads: rows.flatMap((row) => (row.payload ? [row.payload] : [])),
+  };
+}
+
+export function summarizeValidatedRows(rows: ValidatedImportRow[]): ValidationSummary {
+  return {
+    totalRows: rows.length,
+    validRows: rows.filter((row) => row.status === 'VALID').length,
+    warningRows: rows.filter((row) => row.status === 'WARNING').length,
+    errorRows: rows.filter((row) => row.status === 'ERROR').length,
+    payloadRows: rows.filter((row) => row.payload).length,
+  };
+}
+
+export function validateImport(
+  parsed: ParsedImportFile,
+  mapping: ColumnMapping,
+): { rows: ValidatedImportRow[]; summary: ValidationSummary; payloads: ListingImportPayload[] } {
   const referenceCounts = new Map<string, number>();
   const referenceForRow = new Map<number, string>();
   for (const row of parsed.rows) {
@@ -95,24 +138,17 @@ export function validateImport(parsed: ParsedImportFile, mapping: ColumnMapping)
   }
 
   const rows = parsed.rows.map((row) => {
-    const { payload, issues } = normalizeRow(row.values, mapping);
+    const validated = validateImportRow(row, mapping);
     const reference = referenceForRow.get(row.rowNumber);
     if (reference && (referenceCounts.get(reference) ?? 0) > 1) {
-      issues.push(issue('referenceNo', 'DUPLICATE_REFERENCE', 'Dosya içinde aynı referans numarası birden fazla kez geçiyor.'));
+      validated.issues.push(issue('referenceNo', 'DUPLICATE_REFERENCE', 'Dosya içinde aynı referans numarası birden fazla kez geçiyor.'));
     }
-    const hasError = issues.some((item) => item.code !== 'DUPLICATE_REFERENCE');
-    const status: RowStatus = hasError ? 'ERROR' : issues.length ? 'WARNING' : 'VALID';
-    return { rowNumber: row.rowNumber, source: row.values, status, issues, payload: hasError ? undefined : payload };
+    const hasError = validated.issues.some((item) => item.code !== 'DUPLICATE_REFERENCE');
+    const status: RowStatus = hasError ? 'ERROR' : validated.issues.length ? 'WARNING' : 'VALID';
+    return { ...validated, status, payload: hasError ? undefined : validated.payload };
   });
 
-  const summary = {
-    totalRows: rows.length,
-    validRows: rows.filter((row) => row.status === 'VALID').length,
-    warningRows: rows.filter((row) => row.status === 'WARNING').length,
-    errorRows: rows.filter((row) => row.status === 'ERROR').length,
-    payloadRows: rows.filter((row) => row.payload).length,
-  };
-  return { rows, summary, payloads: rows.flatMap((row) => row.payload ? [row.payload] : []) };
+  return buildValidationResult(rows);
 }
 
 export function missingRequiredMappings(mapping: ColumnMapping): string[] {
