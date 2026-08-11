@@ -7,6 +7,9 @@ export class MyOrganizationMembershipSummaryDto {
   @ApiPropertyOptional({ enum: OrganizationType, nullable: true }) organizationType!: OrganizationType | null;
   @ApiPropertyOptional({ enum: OrganizationRole, nullable: true }) membershipRole!: OrganizationRole | null;
   @ApiPropertyOptional({ enum: MembershipStatus, nullable: true }) membershipStatus!: MembershipStatus | null;
+  @ApiPropertyOptional({ nullable: true }) city!: string | null;
+  @ApiPropertyOptional({ nullable: true }) district!: string | null;
+  @ApiPropertyOptional({ nullable: true }) address!: string | null;
 }
 
 export class MyProfileResponseDto {

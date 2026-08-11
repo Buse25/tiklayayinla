@@ -157,6 +157,19 @@ export function OrganizationApplicationsAdminPage() {
     }
   }
 
+  async function toggleApprovedStatus(application: OrganizationApplicationAdminItem) {
+    if (!['APPROVED', 'SUSPENDED'].includes(application.status) || savingAction) return;
+    if (!window.confirm(`${application.organizationName} kurumunun durumunu değiştirmek istediğinize emin misiniz?`)) return;
+    setSavingAction(application.id); setError(''); setNotice('');
+    try {
+      const status = application.status === 'APPROVED' ? 'SUSPENDED' : 'APPROVED';
+      const response = await authenticatedFetch(`organizations/applications/${application.id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+      if (!response.ok) throw new Error(await readMessage(response, 'Başvuru durumu değiştirilemedi.'));
+      setNotice(`${application.organizationName} durumu güncellendi.`); await load();
+    } catch (exception) { setError(exception instanceof Error ? exception.message : 'Başvuru durumu değiştirilemedi.'); }
+    finally { setSavingAction(null); }
+  }
+
   function openRejectDialog(application: OrganizationApplicationAdminItem) {
     if (!canRejectOrganizationApplication(application.status)) return;
     setRejectingItem(application);
@@ -450,6 +463,13 @@ export function OrganizationApplicationsAdminPage() {
                       >
                         Düzenle
                       </button>
+                    </>
+                  ) : ['APPROVED', 'SUSPENDED'].includes(detailToShow.status) ? (
+                    <>
+                    <button className="rounded-xl bg-teal-700 px-4 py-3 font-semibold text-white hover:bg-teal-800 transition disabled:opacity-50" disabled={!!savingAction} onClick={() => void toggleApprovedStatus(detailToShow)} type="button">
+                      {detailToShow.status === 'APPROVED' ? 'Askıya al' : 'Tekrar onayla'}
+                    </button>
+                    <button className="rounded-xl border border-rose-300 bg-white px-4 py-3 font-semibold text-rose-700 hover:bg-rose-50 transition disabled:opacity-50" disabled={!!savingAction} onClick={() => openRejectDialog(detailToShow)} type="button">Reddet</button>
                     </>
                   ) : (
                     <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 w-full text-center">Bu başvuru zaten işlenmiş.</p>

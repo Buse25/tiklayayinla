@@ -43,10 +43,6 @@ export function ListingsImportPage() {
   }, []);
 
   async function chooseFile(file: File) {
-    if (!sectorAllowed) {
-      setError(sectorRestrictionMessage(organizationType));
-      return;
-    }
     setError('');
     if (!/\.(csv|xlsx)$/i.test(file.name)) { setError('Sadece .csv ve .xlsx dosyaları desteklenir.'); return; }
     if (file.size > maxImportFileSizeBytes) { setError(`Dosya en fazla ${Math.round(maxImportFileSizeBytes / 1024 / 1024)} MB olabilir.`); return; }
@@ -74,7 +70,6 @@ export function ListingsImportPage() {
 
   function next() {
     setError('');
-    if (!sectorAllowed) { setError(sectorRestrictionMessage(organizationType)); return; }
     if (step === 0 && !parsed) { setError('Devam etmek için önce bir CSV veya XLSX dosyası seçin.'); return; }
     if (step === 1) {
       const missing = missingRequiredMappings(mapping);
@@ -105,11 +100,11 @@ export function ListingsImportPage() {
         {step === 0 && <FileUploadStep error={error} onFile={chooseFile} onRemove={reset} parsed={parsed} reading={reading} />}
         {step === 1 && parsed && <ColumnMappingStep mapping={mapping} onChange={(field, header) => setMapping((current) => ({ ...current, [field]: header }))} parsed={parsed} />}
         {step === 2 && validation && <ValidationPreviewStep mapping={mapping} onlyErrors={onlyErrors} onToggleOnlyErrors={() => setOnlyErrors((current) => !current)} onRowsChange={(rows) => setValidation(buildValidationResult(rows))} rows={validation.rows} summary={validation.summary} />}
-        {step === 3 && validation && <ImportSummaryStep mapping={mapping} onBack={back} onReset={reset} payloads={validation.payloads} rows={validation.rows} summary={validation.summary} />}
+        {step === 3 && validation && <ImportSummaryStep mapping={mapping} onBack={back} onReset={reset} payloads={validation.payloads} rows={validation.rows} summary={validation.summary} sectorAllowed={sectorAllowed} />}
       </div>
       {step < 3 && <footer className="mt-6 flex items-center justify-between">
-        <button className="rounded-lg px-4 py-3 font-semibold text-slate-700 disabled:opacity-40" disabled={step === 0 || reading || !sectorAllowed} onClick={back} type="button">Geri</button>
-        <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50" disabled={reading || (step === 0 && !parsed) || !sectorAllowed} onClick={next} type="button">Devam et</button>
+        <button className="rounded-lg px-4 py-3 font-semibold text-slate-700 disabled:opacity-40" disabled={step === 0 || reading} onClick={back} type="button">Geri</button>
+        <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50" disabled={reading || (step === 0 && !parsed)} onClick={next} type="button">Devam et</button>
       </footer>}
     </div>
   </AppShell>;

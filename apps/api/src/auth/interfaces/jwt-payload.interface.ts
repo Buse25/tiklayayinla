@@ -6,6 +6,7 @@ export interface JwtPayload {
   email?: string;
   role?: UserRole;
   type: 'access' | 'refresh';
+  sessionVersion?: number;
   iat?: number;
   exp?: number;
 }

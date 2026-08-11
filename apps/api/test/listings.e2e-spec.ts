@@ -25,13 +25,13 @@ describe('Listings CRUD (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
     const [owner, other] = await Promise.all([
-      prisma.user.create({ data: { email: `listings-owner-${testSuffix}@example.test`, passwordHash: 'test', firstName: 'Owner', lastName: 'Test', role: UserRole.USER, status: UserStatus.ACTIVE } }),
-      prisma.user.create({ data: { email: `listings-other-${testSuffix}@example.test`, passwordHash: 'test', firstName: 'Other', lastName: 'Test', role: UserRole.USER, status: UserStatus.ACTIVE } }),
+      prisma.user.create({ data: { email: `listings-owner-${testSuffix}@example.test`, passwordHash: 'test', firstName: 'Owner', lastName: 'Test', role: UserRole.USER, status: UserStatus.ACTIVE, emailVerified: true } }),
+      prisma.user.create({ data: { email: `listings-other-${testSuffix}@example.test`, passwordHash: 'test', firstName: 'Other', lastName: 'Test', role: UserRole.USER, status: UserStatus.ACTIVE, emailVerified: true } }),
     ]);
     ownerId = owner.id; otherUserId = other.id;
     const jwt = app.get(JwtService);
     const secret = process.env.JWT_ACCESS_SECRET!;
-    [accessToken, otherAccessToken] = await Promise.all([jwt.signAsync({ sub: ownerId, email: owner.email, role: owner.role, type: 'access' }, { secret, expiresIn: '15m' }), jwt.signAsync({ sub: otherUserId, email: other.email, role: other.role, type: 'access' }, { secret, expiresIn: '15m' })]);
+    [accessToken, otherAccessToken] = await Promise.all([jwt.signAsync({ sub: ownerId, email: owner.email, role: owner.role, type: 'access', sessionVersion: 0 }, { secret, expiresIn: '15m' }), jwt.signAsync({ sub: otherUserId, email: other.email, role: other.role, type: 'access', sessionVersion: 0 }, { secret, expiresIn: '15m' })]);
   });
 
   afterAll(async () => {
@@ -87,10 +87,25 @@ describe('Listings CRUD (e2e)', () => {
     await request(app.getHttpServer()).delete(`/api/v1/listings/${listing.id}`).set('Authorization', `Bearer ${accessToken}`).expect(409);
   });
 
-  it('hard deletes a draft listing with 204', async () => {
+  it('soft deletes a draft listing with 204', async () => {
     const listing = await createDatabaseListing(ownerId, ListingStatus.DRAFT, 'Silinecek taslak test ilanı');
     await request(app.getHttpServer()).delete(`/api/v1/listings/${listing.id}`).set('Authorization', `Bearer ${accessToken}`).expect(204);
-    expect(await prisma.listing.findUnique({ where: { id: listing.id } })).toBeNull();
+    const deleted = await prisma.listing.findUnique({ where: { id: listing.id } });
+    expect(deleted).not.toBeNull();
+    expect(deleted?.status).toBe(ListingStatus.DELETED);
+    expect(deleted?.deletedAt).not.toBeNull();
+  });
+
+  it('returns the CSV import template with correct headers and type', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/listings/import/template')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+    
+    expect(response.headers['content-type']).toContain('text/csv');
+    expect(response.headers['content-disposition']).toContain('attachment');
+    expect(response.headers['content-disposition']).toContain('tiklayayinla-listing-import-template.csv');
+    expect(response.text).toContain('\uFEFFtitle;description;price;currency;');
   });
 
   function createDatabaseListing(ownerId: string, status: ListingStatus, title = listingBody.title) {

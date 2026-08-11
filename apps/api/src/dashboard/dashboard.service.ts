@@ -1,11 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import { ConnectionStatus, ListingStatus, PublicationStatus } from '@prisma/client';
+import { ConnectionStatus, ListingStatus, OrganizationApplicationStatus, PublicationStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DashboardSummaryResponseDto } from './dto/dashboard-summary-response.dto';
+import { AdminDashboardSummaryResponseDto } from './dto/admin-dashboard-summary-response.dto';
 
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async adminSummary(): Promise<AdminDashboardSummaryResponseDto> {
+    const [groups, applicationGroups, pendingApplications] = await Promise.all([
+      this.prisma.listing.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.organizationApplication.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.organizationApplication.findMany({ where: { status: OrganizationApplicationStatus.PENDING }, orderBy: { createdAt: 'asc' }, take: 5, select: { id: true, organizationName: true, city: true, district: true, createdAt: true } }),
+    ]);
+    const counts = countBy(groups);
+    const applicationCounts = countBy(applicationGroups);
+    return { total: groups.reduce((sum, group) => sum + group._count._all, 0), active: counts[ListingStatus.ACTIVE] ?? 0, suspended: counts[ListingStatus.SUSPENDED] ?? 0, draft: counts[ListingStatus.DRAFT] ?? 0, deleted: counts[ListingStatus.DELETED] ?? 0, applicationPending: applicationCounts[OrganizationApplicationStatus.PENDING] ?? 0, applicationApproved: applicationCounts[OrganizationApplicationStatus.APPROVED] ?? 0, applicationSuspended: applicationCounts[OrganizationApplicationStatus.SUSPENDED] ?? 0, applicationRejected: applicationCounts[OrganizationApplicationStatus.REJECTED] ?? 0, pendingApplications };
+  }
 
   async summary(userId: string): Promise<DashboardSummaryResponseDto> {
     const now = new Date();

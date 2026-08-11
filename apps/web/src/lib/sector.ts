@@ -4,6 +4,10 @@ export function canUsePropertyListings(organizationType: OrganizationType): bool
   return !organizationType || organizationType === 'REAL_ESTATE_AGENCY';
 }
 
+export function canUseVehicleListings(organizationType: OrganizationType): boolean {
+  return organizationType === 'AUTO_DEALER';
+}
+
 export function sectorLabel(organizationType: OrganizationType): string {
   if (!organizationType) return 'Bireysel hesap';
   return {
@@ -14,7 +18,7 @@ export function sectorLabel(organizationType: OrganizationType): string {
 }
 
 export function sectorRestrictionMessage(organizationType: OrganizationType): string {
-  if (organizationType === 'AUTO_DEALER') return 'Bu hesap türü şimdilik araç domaini beklediği için property ilan oluşturamaz, içe aktaramaz veya yayınlayamaz.';
+  if (organizationType === 'AUTO_DEALER') return 'Bu hesap türü ile gayrimenkul ilanı oluşturamaz veya içe aktaramazsınız. Lütfen hesap yetkilerinizi kontrol edin.';
   if (organizationType === 'OTHER') return 'Bu hesap türü property ilan akışında desteklenmiyor.';
   return '';
 }

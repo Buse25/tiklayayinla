@@ -1,7 +1,7 @@
 import { getLicenseNumberRequirement } from './organization-applications';
 import { sectorLabel, type OrganizationType } from './sector';
 
-export type OrganizationApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type OrganizationApplicationStatus = 'PENDING' | 'APPROVED' | 'SUSPENDED' | 'REJECTED';
 export type OrganizationApplicationTab = 'ALL' | OrganizationApplicationStatus;
 
 export type OrganizationApplicationAdminItem = {
@@ -34,12 +34,14 @@ export type OrganizationApplicationAdminReviewResponse = OrganizationApplication
 const statusLabels: Record<OrganizationApplicationStatus, string> = {
   PENDING: 'Bekleyen',
   APPROVED: 'Onaylanan',
+  SUSPENDED: 'Askıya alınan',
   REJECTED: 'Reddedilen',
 };
 
 const statusTones: Record<OrganizationApplicationStatus, string> = {
   PENDING: 'amber',
   APPROVED: 'emerald',
+  SUSPENDED: 'amber',
   REJECTED: 'rose',
 };
 
@@ -48,7 +50,7 @@ export function canApproveOrganizationApplication(status: OrganizationApplicatio
 }
 
 export function canRejectOrganizationApplication(status: OrganizationApplicationStatus) {
-  return status === 'PENDING';
+  return ['PENDING', 'APPROVED', 'SUSPENDED'].includes(status);
 }
 
 export function maskOrganizationVkn(vkn: string | null | undefined) {
@@ -91,5 +93,5 @@ export function countOrganizationApplications(applications: OrganizationApplicat
     counts.ALL += 1;
     counts[application.status] += 1;
     return counts;
-  }, { ALL: 0, PENDING: 0, APPROVED: 0, REJECTED: 0 });
+  }, { ALL: 0, PENDING: 0, APPROVED: 0, SUSPENDED: 0, REJECTED: 0 });
 }

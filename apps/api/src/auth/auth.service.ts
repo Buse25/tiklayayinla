@@ -11,6 +11,11 @@ import { AuthResponseDto, UserResponseDto } from './dto/auth-response.dto';
 import type { VerificationRequiredResponseDto } from './dto/verification.dto';
 import type { JwtPayload } from './interfaces/jwt-payload.interface';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { ForgotPasswordResetDto, ForgotPasswordRequestDto } from './dto/forgot-password.dto';
+import { createHmac, randomInt, timingSafeEqual } from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
+import { GoogleLoginDto } from './dto/google-login.dto';
 
 @Injectable()
 export class AuthService {
@@ -20,12 +25,15 @@ export class AuthService {
   private readonly refreshTtl = process.env.JWT_REFRESH_TTL ?? '30d';
   private readonly refreshTtlMs = parseDuration(this.refreshTtl);
   private readonly saltRounds = 12;
+  private readonly googleClientId = process.env.GOOGLE_CLIENT_ID;
+  private readonly googleClient = new OAuth2Client();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly auditContext: AuditContextService,
     private readonly emailVerificationService: EmailVerificationService,
+    private readonly mail: MailService,
   ) {}
 
   async register(dto: RegisterDto): Promise<VerificationRequiredResponseDto> {
@@ -82,9 +90,109 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() }, include: activeMembershipInclude });
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) throw new UnauthorizedException('E-posta veya parola geÃ§ersiz.');
+    if (!user || !user.passwordHash || !(await bcrypt.compare(dto.password, user.passwordHash))) throw new UnauthorizedException('E-posta veya parola geçersiz.');
     this.assertActive(user);
     return this.createSession(user);
+  }
+
+  async loginWithGoogle(dto: GoogleLoginDto): Promise<AuthResponseDto> {
+    if (!this.googleClientId) {
+      throw new Error('GOOGLE_CLIENT_ID environment variable is not defined.');
+    }
+
+    let payload;
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken: dto.token,
+        audience: this.googleClientId,
+      });
+      payload = ticket.getPayload();
+    } catch (error) {
+      throw new UnauthorizedException('Google kimlik doğrulaması başarısız oldu.');
+    }
+
+    if (!payload || !payload.email) {
+      throw new UnauthorizedException('Google kimlik doğrulaması başarısız oldu.');
+    }
+
+    if (!payload.email_verified) {
+      throw new UnauthorizedException('Google hesabındaki e-posta doğrulanmamış.');
+    }
+
+    const email = payload.email.toLowerCase();
+    const sub = payload.sub;
+
+    let user = await this.prisma.user.findUnique({
+      where: { googleId: sub },
+      include: activeMembershipInclude,
+    });
+
+    if (!user) {
+      user = await this.prisma.user.findUnique({
+        where: { email },
+        include: activeMembershipInclude,
+      });
+
+      if (user) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId: sub,
+            emailVerified: true,
+          },
+          include: activeMembershipInclude,
+        });
+      } else {
+        user = await this.prisma.user.create({
+          data: {
+            email,
+            firstName: (payload.given_name || payload.name || 'Google').trim(),
+            lastName: (payload.family_name || '').trim(),
+            googleId: sub,
+            emailVerified: true,
+            status: UserStatus.ACTIVE,
+            role: UserRole.USER,
+          },
+          include: activeMembershipInclude,
+        });
+      }
+    }
+
+    this.assertActive(user);
+    return this.createSession(user);
+  }
+
+  async requestForgotPassword(dto: ForgotPasswordRequestDto): Promise<{ message: string }> {
+    const email = dto.email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({ where: { email }, select: { id: true, email: true, status: true } });
+    if (user && user.status === UserStatus.ACTIVE) {
+      const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+      const expiresAt = new Date(Date.now() + 10 * 60_000);
+      await this.prisma.$transaction(async tx => {
+        await tx.passwordChangeCode.updateMany({ where: { userId: user.id, consumedAt: null, invalidatedAt: null }, data: { invalidatedAt: new Date() } });
+        await tx.passwordChangeCode.create({ data: { userId: user.id, codeHash: hashResetCode(code), expiresAt, resendAvailableAt: new Date(Date.now() + 60_000) } });
+      });
+      try { await this.mail.sendPasswordChangeCode({ to: user.email, code, expiresAt }); }
+      catch (error) { await this.prisma.passwordChangeCode.updateMany({ where: { userId: user.id, codeHash: hashResetCode(code), consumedAt: null, invalidatedAt: null }, data: { invalidatedAt: new Date() } }); throw error; }
+    }
+    return { message: 'E-posta adresiniz kayıtlıysa şifre yenileme kodu gönderildi.' };
+  }
+
+  async resetForgotPassword(dto: ForgotPasswordResetDto): Promise<void> {
+    if (dto.newPassword !== dto.confirmPassword) throw new ConflictException('Yeni şifreler eşleşmiyor.');
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email.trim().toLowerCase() }, select: { id: true, status: true } });
+    if (!user || user.status !== UserStatus.ACTIVE) throw new UnauthorizedException('Kod geçersiz veya süresi dolmuş.');
+    const code = await this.prisma.passwordChangeCode.findFirst({ where: { userId: user.id, consumedAt: null, invalidatedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });
+    if (!code || !safeResetCompare(code.codeHash, hashResetCode(dto.code))) {
+      if (code) await this.prisma.passwordChangeCode.update({ where: { id: code.id }, data: { attemptCount: { increment: 1 }, invalidatedAt: code.attemptCount + 1 >= code.maxAttempts ? new Date() : null } });
+      throw new UnauthorizedException('Kod geçersiz veya süresi dolmuş.');
+    }
+    const passwordHash = await bcrypt.hash(dto.newPassword, this.saltRounds);
+    await this.prisma.$transaction(async tx => {
+      await tx.user.update({ where: { id: user.id }, data: { passwordHash, sessionVersion: { increment: 1 } } });
+      await tx.passwordChangeCode.update({ where: { id: code.id }, data: { consumedAt: new Date() } });
+      await tx.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+    });
   }
 
   async refresh(rawToken: string): Promise<AuthResponseDto> {
@@ -104,9 +212,9 @@ export class AuthService {
     await this.prisma.refreshToken.update({ where: { id: storedToken.id }, data: { revokedAt: new Date() } });
   }
 
-  async validateAccessUser(userId: string): Promise<UserResponseDto> {
+  async validateAccessUser(userId: string, sessionVersion?: number): Promise<UserResponseDto> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, include: activeMembershipInclude });
-    if (!user) throw new UnauthorizedException();
+    if (!user || user.sessionVersion !== sessionVersion) throw new UnauthorizedException();
     this.assertActive(user);
     const latestApp = await this.prisma.organizationApplication.findFirst({
       where: { userId },
@@ -131,8 +239,8 @@ export class AuthService {
       select: { status: true },
     });
     const userResponse = toUserResponse(user, membership ?? getActiveMembership(user), latestApp?.status ?? null);
-    const accessToken = await this.jwt.signAsync({ sub: user.id, email: user.email, role: user.role, type: 'access' }, { secret: this.accessSecret, expiresIn: this.accessTtl });
-    const refreshToken = await this.jwt.signAsync({ sub: user.id, jti: tokenId, type: 'refresh' }, { secret: this.refreshSecret, expiresIn: this.refreshTtl });
+    const accessToken = await this.jwt.signAsync({ sub: user.id, email: user.email, role: user.role, type: 'access', sessionVersion: user.sessionVersion }, { secret: this.accessSecret, expiresIn: this.accessTtl });
+    const refreshToken = await this.jwt.signAsync({ sub: user.id, jti: tokenId, type: 'refresh', sessionVersion: user.sessionVersion }, { secret: this.refreshSecret, expiresIn: this.refreshTtl });
     await client.refreshToken.create({ data: { id: tokenId, userId: user.id, tokenHash: await bcrypt.hash(refreshToken, this.saltRounds), expiresAt: new Date(Date.now() + this.refreshTtlMs) } });
     return { accessToken, refreshToken, user: userResponse };
   }
@@ -148,8 +256,18 @@ export class AuthService {
   }
 
   private assertActive(user: User): void {
-    if (user.status !== UserStatus.ACTIVE) throw new ForbiddenException('Kullanıcı hesabı aktif değil.');
-    if (!user.emailVerified) throw new ForbiddenException({ code: 'EMAIL_NOT_VERIFIED', message: 'E-posta adresiniz doğrulanmamış.' });
+    if (user.status === UserStatus.SUSPENDED) {
+      throw new ForbiddenException('Bu hesap askıya alınmış.');
+    }
+    if (user.status === UserStatus.DELETED) {
+      throw new ForbiddenException('Bu hesap silinmiş.');
+    }
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('Kullanıcı hesabı aktif değil.');
+    }
+    if (!user.emailVerified) {
+      throw new ForbiddenException({ code: 'EMAIL_NOT_VERIFIED', message: 'E-posta adresiniz doğrulanmamış.' });
+    }
   }
 }
 
@@ -242,3 +360,6 @@ function parseDuration(value: string): number {
 function isPrismaUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2002';
 }
+
+function hashResetCode(code: string): string { return createHmac('sha256', requiredEnv('JWT_ACCESS_SECRET')).update(code).digest('hex'); }
+function safeResetCompare(left: string, right: string): boolean { const a = Buffer.from(left, 'hex'); const b = Buffer.from(right, 'hex'); return a.length === b.length && timingSafeEqual(a, b); }

@@ -1,20 +1,23 @@
 import {
   ConflictException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { createHmac, randomInt, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { MyProfileResponseDto } from './dto/my-profile-response.dto';
-import { AuditAction, AuditEntityType, MembershipStatus, OrganizationApplicationStatus, Prisma } from '@prisma/client';
+import { AuditAction, AuditEntityType, MembershipStatus, OrganizationApplicationStatus, Prisma, UserRole, UserStatus } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { PasswordCodeResponseDto } from './dto/password-code-response.dto';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 
 const profileSelect = {
   id: true, email: true, firstName: true, lastName: true, phone: true, about: true, address: true,
@@ -23,7 +26,7 @@ const profileSelect = {
     where: { status: MembershipStatus.ACTIVE },
     orderBy: { createdAt: 'asc' },
     take: 1,
-    include: { organization: { select: { id: true, name: true, type: true } } },
+    include: { organization: { select: { id: true, name: true, type: true, city: true, district: true, address: true } } },
   },
 } as const;
 
@@ -39,6 +42,18 @@ export class UsersService {
       select: { status: true },
     });
     return toProfileResponse(profile, latestApp?.status ?? null);
+  }
+
+  async updateUserStatus(actorRole: UserRole, userId: string, dto: UpdateUserStatusDto): Promise<void> {
+    if (actorRole !== UserRole.ADMIN) throw new ForbiddenException('Bu işlem için admin yetkisi gerekir.');
+    if (dto.status === UserStatus.DELETED) throw new ConflictException('DELETED durumu bu ekrandan verilemez.');
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, status: true } });
+    if (!user) throw new NotFoundException('Kullanıcı bulunamadı.');
+    if (user.status === UserStatus.DELETED) throw new ConflictException('DELETED kullanıcı tekrar aktif edilemez.');
+    await this.prisma.$transaction(async tx => {
+      await tx.user.update({ where: { id: userId }, data: { status: dto.status, sessionVersion: { increment: 1 } } });
+      if (dto.status !== UserStatus.ACTIVE) await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    });
   }
 
   async updateMyProfile(userId: string, dto: UpdateMyProfileDto): Promise<MyProfileResponseDto> {
@@ -97,21 +112,16 @@ export class UsersService {
     }
     const passwordHash = await bcrypt.hash(dto.newPassword, 12);
     await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+      await tx.user.update({ where: { id: userId }, data: { passwordHash, sessionVersion: { increment: 1 } } });
       await tx.passwordChangeCode.update({ where: { id: active.id }, data: { consumedAt: new Date() } });
       await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
     });
   }
 
-  async deleteAccount(userId: string): Promise<void> {
-    const owned = await this.prisma.organizationMembership.findMany({ where: { userId, role: 'OWNER', status: 'ACTIVE' }, select: { organizationId: true } });
-    for (const membership of owned) {
-      const otherMembers = await this.prisma.organizationMembership.count({ where: { organizationId: membership.organizationId, status: 'ACTIVE', userId: { not: userId } } });
-      if (otherMembers > 0) throw new ConflictException('Aktif sahibi olduğunuz organizasyonda başka üyeler bulunduğu için hesap silinemiyor.');
-    }
-    await this.prisma.$transaction(async (tx) => {
-      for (const membership of owned) await tx.organization.delete({ where: { id: membership.organizationId } });
-      await tx.user.delete({ where: { id: userId } });
+  async deleteAccount(userId: string, role?: UserRole): Promise<void> {
+    await this.prisma.$transaction(async tx => {
+      await tx.user.update({ where: { id: userId }, data: { status: UserStatus.DELETED, deletedAt: new Date(), sessionVersion: { increment: 1 } } });
+      await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
     });
   }
 }
@@ -134,7 +144,10 @@ function toProfileResponse(profile: ProfileRecord, applicationStatus?: Organizat
       organizationType: membership.organization.type,
       membershipRole: membership.role,
       membershipStatus: membership.status,
-    } : { organizationId: null, organizationName: null, organizationType: null, membershipRole: null, membershipStatus: null },
+      city: (membership.organization as any).city ?? null,
+      district: (membership.organization as any).district ?? null,
+      address: (membership.organization as any).address ?? null,
+    } : { organizationId: null, organizationName: null, organizationType: null, membershipRole: null, membershipStatus: null, city: null, district: null, address: null },
     organizationApplicationStatus: applicationStatus ?? null,
   };
 }

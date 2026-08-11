@@ -3,8 +3,8 @@ import { REFRESH_TOKEN_COOKIE, apiUrl, clearSessionCookies, setSessionCookies, t
 
 export const runtime = 'nodejs';
 
-const sessionActions = new Set(['login', 'refresh', 'verify-email']);
-const postOnlyActions = new Set(['login', 'register', 'refresh', 'logout', 'verify-email', 'resend-verification']);
+const sessionActions = new Set(['login', 'refresh', 'verify-email', 'google']);
+const postOnlyActions = new Set(['login', 'register', 'refresh', 'logout', 'verify-email', 'resend-verification', 'forgot-password', 'reset-password', 'google']);
 
 export async function GET(request: NextRequest, { params }: { params: { action: string } }) {
   if (params.action !== 'verification-status') return NextResponse.json({ message: 'Bulunamadı.' }, { status: 404 });
@@ -54,6 +54,10 @@ export async function POST(request: NextRequest, { params }: { params: { action:
       const response = new NextResponse(null, { status: upstream.ok ? 204 : upstream.status });
       clearSessionCookies(response);
       return response;
+    }
+
+    if (upstream.status === 204) {
+      return new NextResponse(null, { status: 204 });
     }
 
     const payload = await upstream.json();

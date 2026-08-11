@@ -21,7 +21,7 @@ export interface CanonicalListing {
 
 export type Currency = 'TRY' | 'USD' | 'EUR' | 'GBP';
 export type ListingType = 'SALE' | 'RENT';
-export type ListingStatus = 'DRAFT' | 'PUBLISHING' | 'ACTIVE' | 'ARCHIVED';
+export type ListingStatus = 'DRAFT' | 'PUBLISHING' | 'ACTIVE' | 'ARCHIVED' | 'SUSPENDED' | 'DELETED';
 export type PropertyType =
   | 'APARTMENT' | 'HOUSE' | 'VILLA' | 'LAND' | 'COMMERCIAL' | 'OFFICE' | 'BUILDING' | 'OTHER';
 

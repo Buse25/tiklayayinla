@@ -8,6 +8,8 @@ import { enumOptions, featureCategories, type FeatureCategory, type Option } fro
 import { authenticatedFetch } from '../../lib/api-client';
 import { getListingTypeLabel } from '../../lib/listing-display-labels';
 import { canUsePropertyListings, sectorRestrictionMessage, type OrganizationType } from '../../lib/sector';
+import { getDistrictsByCity, getHousingTypesForPropertyType, getTurkeyCities } from '@tiklayayinla/shared-types';
+import { NewVehicleListingForm } from './new-vehicle-listing-form';
 
 type FormData = Record<string, string>;
 type FeatureSelections = Record<FeatureCategory['key'], string[]>;
@@ -26,31 +28,75 @@ const detailFields: { key: string; label: string; type: 'number' | 'text' | 'sel
   { key: 'advertiserType', label: 'İlan veren tipi', type: 'select', options: enumOptions.advertiserType }, { key: 'isExchangeAccepted', label: 'Takas kabulü', type: 'boolean' }, { key: 'housingType', label: 'Konut tipi', type: 'select', options: enumOptions.housingType },
 ];
 
-function asNumber(value: string): number | undefined { return value.trim() === '' ? undefined : Number(value); }
+function asNumber(value: string): number | undefined { if (value.trim() === '') return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined; }
 function omitEmpty(data: FormData, keys: string[]): Record<string, unknown> { return Object.fromEntries(keys.flatMap((key) => data[key]?.trim() ? [[key, data[key].trim()]] : [])); }
 
+interface ProfileData {
+  organization?: {
+    organizationId?: string | null;
+    organizationName?: string | null;
+    organizationType?: OrganizationType;
+    city?: string | null;
+    district?: string | null;
+    address?: string | null;
+  } | null;
+}
+
 export function NewListingForm() {
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    void authenticatedFetch('users/me')
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = await response.json();
+        if (active) {
+          setProfile(data);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <AppShell>
+        <div className="flex min-h-[400px] items-center justify-center">
+          <div className="text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent mx-auto"></div>
+            <p className="mt-4 text-sm font-semibold text-slate-500">Yükleniyor...</p>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (profile?.organization?.organizationType === 'AUTO_DEALER') {
+    return <NewVehicleListingForm initialProfile={profile} />;
+  }
+
+  return <NewPropertyListingForm initialProfile={profile} />;
+}
+
+export function NewPropertyListingForm({ initialProfile }: { initialProfile: ProfileData | null }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<FormData>({ currency: 'TRY', listingType: 'SALE', propertyType: 'APARTMENT' });
   const [features, setFeatures] = useState<FeatureSelections>(initialFeatures);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [organizationType, setOrganizationType] = useState<OrganizationType>(undefined);
+  const organizationType = initialProfile?.organization?.organizationType ?? null;
   const sectorAllowed = canUsePropertyListings(organizationType);
 
   function setValue(key: string, value: string) { setData((current) => ({ ...current, [key]: value })); }
   function toggleFeature(key: FeatureCategory['key'], value: string) { setFeatures((current) => ({ ...current, [key]: current[key].includes(value) ? current[key].filter((item) => item !== value) : [...current[key], value] })); }
-
-  useEffect(() => {
-    let active = true;
-    void authenticatedFetch('users/me').then(async (response) => {
-      if (!response.ok) return;
-      const profile = await response.json() as { organizationType?: OrganizationType };
-      if (active) setOrganizationType(profile.organizationType ?? null);
-    }).catch(() => undefined);
-    return () => { active = false; };
-  }, []);
 
   function validateStep(targetStep: number): string | null {
     if (targetStep === 0) {
@@ -117,8 +163,8 @@ export function NewListingForm() {
     {error && <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{error}</div>}
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
       {step === 0 && <div className="grid gap-5"><Field label="İlan başlığı" required value={data.title ?? ''} onChange={(value) => setValue('title', value)} /><TextArea label="Açıklama" required value={data.description ?? ''} onChange={(value) => setValue('description', value)} /><div className="grid gap-5 sm:grid-cols-2"><Field label="Fiyat" required type="number" min="0.01" value={data.price ?? ''} onChange={(value) => setValue('price', value)} /><Select label="Para birimi" required value={data.currency} options={enumOptions.currency} onChange={(value) => setValue('currency', value)} /><Select label="İlan tipi" required value={data.listingType} options={enumOptions.listingType} onChange={(value) => setValue('listingType', value)} /><Select label="Gayrimenkul tipi" required value={data.propertyType} options={enumOptions.propertyType} onChange={(value) => setValue('propertyType', value)} /></div></div>}
-      {step === 1 && <div className="grid gap-5 sm:grid-cols-2"><Field label="İl" required value={data.city ?? ''} onChange={(value) => setValue('city', value)} /><Field label="İlçe" required value={data.district ?? ''} onChange={(value) => setValue('district', value)} /><Field label="Mahalle" value={data.neighborhood ?? ''} onChange={(value) => setValue('neighborhood', value)} /><Field label="Açık adres" required value={data.address ?? ''} onChange={(value) => setValue('address', value)} /><Field label="Enlem" type="number" value={data.latitude ?? ''} onChange={(value) => setValue('latitude', value)} /><Field label="Boylam" type="number" value={data.longitude ?? ''} onChange={(value) => setValue('longitude', value)} /></div>}
-      {step === 2 && <div className="grid gap-5 sm:grid-cols-2">{detailFields.map((field) => field.key === 'complexName' && data.isInComplex !== 'true' ? null : field.type === 'select' ? <Select key={field.key} label={field.label} value={data[field.key] ?? ''} options={field.options!} onChange={(value) => setValue(field.key, value)} /> : field.type === 'boolean' ? <Select key={field.key} label={field.label} value={data[field.key] ?? ''} options={[{ value: 'true', label: 'Evet' }, { value: 'false', label: 'Hayır' }]} onChange={(value) => setValue(field.key, value)} /> : <Field key={field.key} label={field.label} type={field.type} min={field.min?.toString()} value={data[field.key] ?? ''} onChange={(value) => setValue(field.key, value)} />)}</div>}
+      {step === 1 && <div className="grid gap-5 sm:grid-cols-2"><LocationFields city={data.city ?? ''} district={data.district ?? ''} onCityChange={(value) => setData((current) => ({ ...current, city: value, district: '' }))} onDistrictChange={(value) => setValue('district', value)} /><Field label="Mahalle" value={data.neighborhood ?? ''} onChange={(value) => setValue('neighborhood', value)} /><Field label="Açık adres" required value={data.address ?? ''} onChange={(value) => setValue('address', value)} /><Field label="Enlem" type="number" value={data.latitude ?? ''} onChange={(value) => setValue('latitude', value)} /><Field label="Boylam" type="number" value={data.longitude ?? ''} onChange={(value) => setValue('longitude', value)} /></div>}
+      {step === 2 && <div className="grid gap-5 sm:grid-cols-2">{detailFields.map((field) => field.key === 'complexName' && data.isInComplex !== 'true' ? null : field.type === 'select' ? <Select key={field.key} label={field.label} value={data[field.key] ?? ''} options={field.key === 'housingType' ? field.options!.filter((option) => getHousingTypesForPropertyType(data.propertyType ?? 'OTHER').includes(option.value)) : field.options!} onChange={(value) => setValue(field.key, value)} /> : field.type === 'boolean' ? <Select key={field.key} label={field.label} value={data[field.key] ?? ''} options={[{ value: 'true', label: 'Evet' }, { value: 'false', label: 'Hayır' }]} onChange={(value) => setValue(field.key, value)} /> : <Field key={field.key} label={field.label} type={field.type} min={field.min?.toString()} value={data[field.key] ?? ''} onChange={(value) => setValue(field.key, value)} />)}</div>}
       {step === 3 && <div className="space-y-7">{featureCategories.map((category) => <fieldset key={category.key}><legend className="mb-3 text-base font-bold">{category.label}</legend><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{category.options.map((option) => <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm hover:border-teal-400" key={option.value}><input checked={features[category.key].includes(option.value)} onChange={() => toggleFeature(category.key, option.value)} type="checkbox" /><span>{option.label}</span></label>)}</div></fieldset>)}</div>}
       {step === 4 && <div className="space-y-5"><h2 className="text-xl font-bold">Kaydetmeden önce kontrol edin</h2><div className="grid gap-4 rounded-xl bg-slate-50 p-5 sm:grid-cols-2"><Preview label="Başlık" value={data.title} /><Preview label="Fiyat" value={data.price ? `${data.price} ${data.currency}` : undefined} /><Preview label="Konum" value={[data.district, data.city].filter(Boolean).join(', ')} /><Preview label="İlan tipi" value={getListingTypeLabel(data.listingType)} /></div><p className="text-sm text-slate-600">İlan taslak olarak oluşturulur. Sonraki adımda görseller ekleyebilirsiniz.</p></div>}
     </section>
@@ -126,7 +172,8 @@ export function NewListingForm() {
   </form></div></AppShell>;
 }
 
-function Field({ label, required, type = 'text', value, onChange, min }: { label: string; required?: boolean; type?: string; value: string; onChange: (value: string) => void; min?: string }) { return <label className="grid gap-2 text-sm font-semibold">{label}{required && <span className="ml-1 text-red-600">*</span>}<input className="rounded-lg border border-slate-300 px-3 py-3 font-normal outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" min={min} onChange={(event) => onChange(event.target.value)} step={type === 'number' ? 'any' : undefined} type={type} value={value} /></label>; }
+function Field({ label, required, type = 'text', value, onChange, min }: { label: string; required?: boolean; type?: string; value: string; onChange: (value: string) => void; min?: string }) { return <label className="grid gap-2 text-sm font-semibold">{label}{required && <span className="ml-1 text-red-600">*</span>}<input className="rounded-lg border border-slate-300 px-3 py-3 font-normal outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" min={min} onChange={(event) => onChange(type === 'number' ? event.target.value.replace(Number(min) < 0 ? /[^0-9.,-]/g : /[^0-9.,]/g, '').replace(',', '.') : event.target.value)} step={type === 'number' ? 'any' : undefined} inputMode={type === 'number' ? 'decimal' : undefined} type={type === 'number' ? 'text' : type} value={value} /></label>; }
 function TextArea({ label, required, value, onChange }: { label: string; required?: boolean; value: string; onChange: (value: string) => void }) { return <label className="grid gap-2 text-sm font-semibold">{label}{required && <span className="ml-1 text-red-600">*</span>}<textarea className="min-h-36 rounded-lg border border-slate-300 px-3 py-3 font-normal outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" onChange={(event) => onChange(event.target.value)} value={value} /></label>; }
 function Select({ label, required, value, options, onChange }: { label: string; required?: boolean; value: string; options: Option[]; onChange: (value: string) => void }) { return <label className="grid gap-2 text-sm font-semibold">{label}{required && <span className="ml-1 text-red-600">*</span>}<select className="rounded-lg border border-slate-300 bg-white px-3 py-3 font-normal outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" onChange={(event) => onChange(event.target.value)} value={value}><option value="">Seçiniz</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>; }
+function LocationFields({ city, district, onCityChange, onDistrictChange }: { city: string; district: string; onCityChange: (value: string) => void; onDistrictChange: (value: string) => void }) { const cities = getTurkeyCities(); const districts = getDistrictsByCity(city); return <><label className="grid gap-2 text-sm font-semibold">İl<span className="text-red-600">*</span><select className="rounded-lg border border-slate-300 bg-white px-3 py-3 font-normal" required value={city} onChange={(event) => onCityChange(event.target.value)}><option value="">İl seçiniz</option>{cities.map((item) => <option key={item.code} value={item.name}>{item.name}</option>)}</select></label><label className="grid gap-2 text-sm font-semibold">İlçe<span className="text-red-600">*</span><select className="rounded-lg border border-slate-300 bg-white px-3 py-3 font-normal disabled:bg-slate-100" disabled={!city} required value={district} onChange={(event) => onDistrictChange(event.target.value)}><option value="">{city ? 'İlçe seçiniz' : 'Önce il seçiniz'}</option>{districts.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></>; }
 function Preview({ label, value }: { label: string; value?: string }) { return <div><p className="text-xs font-semibold text-slate-500">{label}</p><p className="mt-1 font-medium">{value || 'Belirtilmedi'}</p></div>; }

@@ -13,6 +13,7 @@ type Props = {
   summary: ValidationSummary;
   onBack: () => void;
   onReset: () => void;
+  sectorAllowed?: boolean;
 };
 
 type PreviewState =
@@ -26,7 +27,7 @@ type ConfirmState =
   | { status: 'done'; result: BackendImportConfirmResponse }
   | { status: 'error'; error: string; tokenMayBeConsumed: boolean };
 
-export function ImportSummaryStep({ mapping, payloads, rows, summary, onBack, onReset }: Props) {
+export function ImportSummaryStep({ mapping, payloads, rows, summary, onBack, onReset, sectorAllowed = true }: Props) {
   const [previewState, setPreviewState] = useState<PreviewState>({ status: 'idle' });
   const [confirmState, setConfirmState] = useState<ConfirmState>({ status: 'idle' });
   const prepared = useMemo(() => prepareBackendImportRows(rows), [rows]);
@@ -139,10 +140,16 @@ export function ImportSummaryStep({ mapping, payloads, rows, summary, onBack, on
       </div>
     </details>
 
+    {!sectorAllowed && (
+      <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        Bu hesap türü ile gayrimenkul ilanı içe aktarılamaz. İlan oluşturabilmek için uygun hesap/domain yetkisine sahip olmanız gerekir.
+      </div>
+    )}
+
     <div className="mt-6 flex flex-wrap gap-3">
       <button className="rounded-xl border border-slate-300 px-5 py-3 font-semibold disabled:opacity-50" disabled={confirmInProgress} onClick={onBack} type="button">Geri Dön ve Düzelt</button>
       <button className="rounded-xl border border-slate-300 px-5 py-3 font-semibold disabled:opacity-50" disabled={confirmInProgress} onClick={onReset} type="button">Baştan Başla</button>
-      <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50" disabled={previewState.status !== 'ready' || previewState.preview.summary.validRows === 0 || confirmInProgress || confirmState.status === 'done'} onClick={confirmImport} type="button">
+      <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-50" disabled={previewState.status !== 'ready' || previewState.preview.summary.validRows === 0 || confirmInProgress || confirmState.status === 'done' || !sectorAllowed} onClick={confirmImport} type="button">
         {confirmInProgress ? 'İlanlar içe aktarılıyor...' : 'İlanları İçe Aktar'}
       </button>
     </div>

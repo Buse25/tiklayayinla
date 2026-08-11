@@ -1,0 +1,4 @@
+
+Google tiklayayinla.
+client id:1007197970703-64e06ui1nfje344scrokju8emkufn3nk.apps.googleusercontent.com
+client secret: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

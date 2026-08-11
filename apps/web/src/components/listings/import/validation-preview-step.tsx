@@ -193,7 +193,7 @@ function FieldEditor({ field, value, onChange }: { field: (typeof importFields)[
   }
 
   if (field.type === 'number') {
-    return <input className={controlClassName} inputMode="decimal" onChange={(event) => onChange(event.target.value)} type="number" value={value} />;
+    return <input className={controlClassName} inputMode="decimal" onChange={(event) => onChange(event.target.value.replace(/[^0-9.,-]/g, '').replace(',', '.'))} type="text" value={value} />;
   }
 
   return <input className={controlClassName} onChange={(event) => onChange(event.target.value)} type="text" value={value} />;

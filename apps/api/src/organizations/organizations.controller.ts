@@ -8,6 +8,7 @@ import { CreateOrganizationApplicationDto } from './dto/create-organization-appl
 import { OrganizationApplicationResponseDto } from './dto/organization-application-response.dto';
 import { ReviewOrganizationApplicationDto } from './dto/review-organization-application.dto';
 import { EditOrganizationApplicationDto } from './dto/edit-organization-application.dto';
+import { UpdateOrganizationApplicationStatusDto } from './dto/update-organization-application-status.dto';
 import { OrganizationsService } from './organizations.service';
 
 @ApiTags('Organizations')
@@ -73,5 +74,11 @@ export class OrganizationsController {
   @ApiForbiddenResponse({ description: 'Admin yetkisi gerekir.' })
   editAdmin(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: EditOrganizationApplicationDto) {
     return this.organizations.editApplication(user.id, user.role, id, dto);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(AdminGuard)
+  updateStatus(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateOrganizationApplicationStatusDto) {
+    return this.organizations.updateApplicationStatus(user.id, user.role, id, dto);
   }
 }

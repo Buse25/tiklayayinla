@@ -2,6 +2,9 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, UseGuards } f
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse, ApiUnprocessableEntityResponse } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AdminGuard } from '../auth/guards/admin.guard';
+import { Param } from '@nestjs/common';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { JwtAccessGuard } from '../auth/guards/jwt-access.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
@@ -45,5 +48,12 @@ export class UsersController {
 
   @Post('me/delete')
   @HttpCode(HttpStatus.NO_CONTENT)
-  deleteAccount(@CurrentUser() user: AuthenticatedUser): Promise<void> { return this.users.deleteAccount(user.id); }
+  deleteAccount(@CurrentUser() user: AuthenticatedUser): Promise<void> { return this.users.deleteAccount(user.id, user.role); }
+
+  @Patch(':id/status')
+  @UseGuards(AdminGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  updateStatus(@CurrentUser() actor: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateUserStatusDto): Promise<void> {
+    return this.users.updateUserStatus(actor.role, id, dto);
+  }
 }

@@ -287,7 +287,7 @@ function toCanonicalListing(listing: Prisma.ListingGetPayload<{ include: typeof 
     rooms: listing.residentialDetails?.roomCount ?? undefined,
     areaSqm: Number(grossArea),
     listingType: listing.listingType,
-    propertyType: listing.propertyType,
+    propertyType: listing.propertyType ?? 'OTHER',
     images: listing.media.map((media) => ({ id: media.id, url: media.url, sortOrder: media.sortOrder, altText: media.originalName ?? undefined })),
     contact: { name: `${listing.owner.firstName} ${listing.owner.lastName}`.trim(), phone: '', email: listing.owner.email },
     owner: { id: listing.owner.id, type: 'AGENT', displayName: `${listing.owner.firstName} ${listing.owner.lastName}`.trim() },

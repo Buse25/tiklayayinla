@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { authenticatedFetch } from '../../lib/api-client';
 
@@ -20,6 +20,7 @@ function profileRoleLabel(role?: string) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -41,6 +42,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [loadProfile]);
 
   useEffect(() => {
+    if (!profile) return;
+    if (profile.role === 'ADMIN' && !pathname.startsWith('/admin')) router.replace('/admin');
+    if (profile.role !== 'ADMIN' && pathname.startsWith('/admin')) router.replace('/dashboard');
+  }, [pathname, profile, router]);
+
+  useEffect(() => {
     const handleProfileUpdate = () => {
       void loadProfile();
     };
@@ -60,7 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [isLoggingOut]);
 
-  const navLinks = [
+  const userNavLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { href: '/listings', label: 'İlanlar', icon: 'maps_home_work' },
     { href: '/listings/new', label: 'Yeni İlan', icon: 'add_circle' },
@@ -70,6 +77,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: '/activity', label: 'Aktivite', icon: 'history' },
     { href: '/profile', label: 'Profil', icon: 'person' },
   ];
+  const navLinks = profile?.role === 'ADMIN'
+    ? [{ href: '/admin', label: 'Panel', icon: 'dashboard' }, { href: '/admin/organization-applications', label: 'Kurumsal Başvurular', icon: 'badge' }, { href: '/admin/listings', label: 'Tüm İlanlar', icon: 'maps_home_work' }]
+    : userNavLinks;
 
   function isLinkActive(href: string) {
     if (href === '/listings/new') {
@@ -129,10 +139,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="mt-auto px-4 space-y-2">
-          <Link href="/listings/new" onClick={() => setMobileSidebarOpen(false)} className="w-full bg-primary-container text-on-primary-container py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-sm">
+          {profile?.role !== 'ADMIN' && <Link href="/listings/new" onClick={() => setMobileSidebarOpen(false)} className="w-full bg-primary-container text-on-primary-container py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-sm">
             <span className="material-symbols-outlined">add_circle</span>
             <span className="font-body-md text-body-md">Hızlı İlan Yayınla</span>
-          </Link>
+          </Link>}
           <button onClick={logout} disabled={isLoggingOut} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-low hover:text-primary transition-all duration-200 ease-in-out text-left disabled:opacity-50">
             <span className="material-symbols-outlined">logout</span>
             <span className="font-body-md text-body-md">{isLoggingOut ? 'Çıkış Yapılıyor...' : 'Çıkış Yap'}</span>

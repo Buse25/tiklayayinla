@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { AdvertiserType, Currency, EnergyCertificate, HeatingType, HousingType, KitchenType, ListingMediaType, ListingStatus, ListingType, OccupancyStatus, ParkingType, PropertyType, PublicationStatus, TitleDeedStatus } from '@prisma/client';
+import { AdvertiserType, Currency, EnergyCertificate, HeatingType, HousingType, KitchenType, ListingMediaType, ListingStatus, ListingType, OccupancyStatus, ParkingType, PropertyType, PublicationStatus, TitleDeedStatus, ListingDomain, FuelType, TransmissionType, VehicleBodyType } from '@prisma/client';
 
 export class ListingMediaResponseDto {
   @ApiProperty() id!: string;
@@ -19,6 +19,22 @@ export class ListingPublicationResponseDto {
   @ApiProperty({ example: { id: 'uuid', code: 'mock-rest', name: 'Mock REST Portal' } }) portal!: { id: string; code: string; name: string };
 }
 
+export class VehicleDetailsResponseDto {
+  @ApiProperty() listingId!: string;
+  @ApiProperty() brand!: string;
+  @ApiProperty() model!: string;
+  @ApiProperty() year!: number;
+  @ApiProperty() mileage!: number;
+  @ApiProperty({ enum: FuelType }) fuelType!: FuelType;
+  @ApiProperty({ enum: TransmissionType }) transmission!: TransmissionType;
+  @ApiPropertyOptional({ enum: VehicleBodyType }) bodyType!: VehicleBodyType | null;
+  @ApiPropertyOptional() enginePower!: number | null;
+  @ApiPropertyOptional() engineVolume!: number | null;
+  @ApiPropertyOptional() color!: string | null;
+  @ApiPropertyOptional() damageStatus!: string | null;
+  @ApiPropertyOptional() hasWarranty!: boolean | null;
+}
+
 export class ListingResponseDto {
   @ApiProperty() id!: string;
   @ApiProperty({ example: 'TL-1A2B3C4D5E6F' }) listingNo!: string;
@@ -28,7 +44,8 @@ export class ListingResponseDto {
   @ApiProperty({ example: 4750000 }) price!: number;
   @ApiProperty({ enum: Currency }) currency!: Currency;
   @ApiProperty({ enum: ListingType }) listingType!: ListingType;
-  @ApiProperty({ enum: PropertyType }) propertyType!: PropertyType;
+  @ApiPropertyOptional({ enum: PropertyType }) propertyType!: PropertyType | null;
+  @ApiProperty({ enum: ListingDomain }) listingDomain!: ListingDomain;
   @ApiProperty() city!: string;
   @ApiProperty() district!: string;
   @ApiPropertyOptional() neighborhood!: string | null;
@@ -41,6 +58,7 @@ export class ListingResponseDto {
   @ApiProperty({ type: [ListingMediaResponseDto] }) media!: ListingMediaResponseDto[];
   @ApiProperty({ type: [ListingPublicationResponseDto] }) publications!: ListingPublicationResponseDto[];
   @ApiPropertyOptional({ type: () => ResidentialDetailsResponseDto }) residentialDetails!: Record<string, unknown> | null;
+  @ApiPropertyOptional({ type: () => VehicleDetailsResponseDto }) vehicleDetails!: Record<string, unknown> | null;
   @ApiProperty({ type: () => ListingFeaturesResponseDto }) features!: Record<string, FeatureResponseDto[]>;
 }
 

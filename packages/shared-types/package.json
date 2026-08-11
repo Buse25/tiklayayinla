@@ -12,5 +12,6 @@
   },
   "files": ["dist"],
   "scripts": { "build": "tsc -p tsconfig.json", "lint": "tsc --noEmit -p tsconfig.json" },
+  "dependencies": { "turkey-neighbourhoods": "^4.0.3" },
   "devDependencies": { "typescript": "^5.5.0" }
 }

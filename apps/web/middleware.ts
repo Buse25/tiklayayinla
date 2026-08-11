@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from './src/lib/auth-session';
 
-const protectedPrefixes = ['/listings', '/dashboard'];
+const protectedPrefixes = ['/listings', '/dashboard', '/admin'];
 const authPages = ['/login', '/register'];
 
 export function middleware(request: NextRequest) {
@@ -14,4 +14,4 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ['/listings/:path*', '/dashboard/:path*', '/login', '/register'] };
+export const config = { matcher: ['/listings/:path*', '/dashboard/:path*', '/admin/:path*', '/login', '/register'] };

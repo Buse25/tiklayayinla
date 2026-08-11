@@ -30,14 +30,14 @@ describe('Listing media (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
     const [owner, other] = await Promise.all([
-      prisma.user.create({ data: { email: `media-owner-${suffix}@example.test`, passwordHash: 'test', firstName: 'Media', lastName: 'Owner', role: UserRole.USER, status: UserStatus.ACTIVE } }),
-      prisma.user.create({ data: { email: `media-other-${suffix}@example.test`, passwordHash: 'test', firstName: 'Media', lastName: 'Other', role: UserRole.USER, status: UserStatus.ACTIVE } }),
+      prisma.user.create({ data: { email: `media-owner-${suffix}@example.test`, passwordHash: 'test', firstName: 'Media', lastName: 'Owner', role: UserRole.USER, status: UserStatus.ACTIVE, emailVerified: true } }),
+      prisma.user.create({ data: { email: `media-other-${suffix}@example.test`, passwordHash: 'test', firstName: 'Media', lastName: 'Other', role: UserRole.USER, status: UserStatus.ACTIVE, emailVerified: true } }),
     ]);
     ownerId = owner.id; otherUserId = other.id;
     const [listing, otherListing] = await Promise.all([createListing(ownerId), createListing(otherUserId)]);
     listingId = listing.id; otherListingId = otherListing.id;
     const jwt = app.get(JwtService); const secret = process.env.JWT_ACCESS_SECRET!;
-    [accessToken, otherAccessToken] = await Promise.all([jwt.signAsync({ sub: ownerId, email: owner.email, role: owner.role, type: 'access' }, { secret, expiresIn: '15m' }), jwt.signAsync({ sub: otherUserId, email: other.email, role: other.role, type: 'access' }, { secret, expiresIn: '15m' })]);
+    [accessToken, otherAccessToken] = await Promise.all([jwt.signAsync({ sub: ownerId, email: owner.email, role: owner.role, type: 'access', sessionVersion: 0 }, { secret, expiresIn: '15m' }), jwt.signAsync({ sub: otherUserId, email: other.email, role: other.role, type: 'access', sessionVersion: 0 }, { secret, expiresIn: '15m' })]);
     image = await sharp({ create: { width: 80, height: 60, channels: 3, background: { r: 200, g: 100, b: 50 } } }).jpeg().toBuffer();
   });
 

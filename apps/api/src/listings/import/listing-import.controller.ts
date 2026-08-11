@@ -27,7 +27,7 @@ export class ListingImportController {
 
   @Get('template')
   @ApiOperation({ summary: 'UTF-8 BOM ve ; ayırıcılı CSV ilan şablonunu indirir' })
-  template(@CurrentUser() user: AuthenticatedUser, @Res() response: Response): void { assertPropertySectorAccess(user, 'import'); response.type('text/csv; charset=utf-8').attachment('tiklayayinla-listing-import-template.csv').send(this.imports.template()); }
+  template(@CurrentUser() user: AuthenticatedUser, @Res() response: Response): void { response.type('text/csv; charset=utf-8').attachment('tiklayayinla-listing-import-template.csv').send(this.imports.template()); }
 
   @Post('preview')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
@@ -36,7 +36,7 @@ export class ListingImportController {
   @ApiOperation({ summary: 'Standart CSV dosyasını kaydetmeden parse eder ve doğrular' })
   @ApiOkResponse({ type: ListingImportPreviewResponseDto })
   @ApiTooManyRequestsResponse({ description: 'Import işlemleri için bir dakika içinde en fazla 20 istek gönderilebilir.' })
-  preview(@CurrentUser() user: AuthenticatedUser, @UploadedFile() file: Express.Multer.File) { assertPropertySectorAccess(user, 'import'); return this.imports.preview(user.id, file); }
+  preview(@CurrentUser() user: AuthenticatedUser, @UploadedFile() file: Express.Multer.File) { return this.imports.preview(user.id, file); }
 
   @Post('analyze')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
@@ -45,7 +45,7 @@ export class ListingImportController {
   @ApiOperation({ summary: 'Kaynak CSV kolonlarını analiz eder ve mapping önerileri üretir' })
   @ApiOkResponse({ type: ImportAnalysisResponseDto })
   @ApiTooManyRequestsResponse({ description: 'Import işlemleri için bir dakika içinde en fazla 20 istek gönderilebilir.' })
-  analyze(@CurrentUser() user: AuthenticatedUser, @UploadedFile() file: Express.Multer.File) { assertPropertySectorAccess(user, 'import'); return this.mapping.analyze(user.id, file); }
+  analyze(@CurrentUser() user: AuthenticatedUser, @UploadedFile() file: Express.Multer.File) { return this.mapping.analyze(user.id, file); }
 
   @Post('transform')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
@@ -53,7 +53,7 @@ export class ListingImportController {
   @ApiOperation({ summary: 'Onaylı kaynak CSV mappingini standart preview sonucuna dönüştürür' })
   @ApiOkResponse({ type: ListingImportPreviewResponseDto })
   @ApiTooManyRequestsResponse({ description: 'Import işlemleri için bir dakika içinde en fazla 20 istek gönderilebilir.' })
-  transform(@CurrentUser() user: AuthenticatedUser, @Body() dto: TransformImportDto) { assertPropertySectorAccess(user, 'import'); return this.mapping.transform(user.id, dto); }
+  transform(@CurrentUser() user: AuthenticatedUser, @Body() dto: TransformImportDto) { return this.mapping.transform(user.id, dto); }
 
   @Post('confirm')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })

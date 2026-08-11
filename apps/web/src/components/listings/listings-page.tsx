@@ -8,7 +8,7 @@ import { AppShell } from '../layout/app-shell';
 
 
 type ListingMedia = { id: string; url: string; sortOrder: number; isCover?: boolean };
-type ListingStatus = 'DRAFT' | 'PUBLISHING' | 'ACTIVE' | 'ARCHIVED';
+type ListingStatus = 'DRAFT' | 'PUBLISHING' | 'ACTIVE' | 'ARCHIVED' | 'SUSPENDED' | 'DELETED';
 type Listing = {
   id: string;
   listingNo: string;
@@ -20,14 +20,17 @@ type Listing = {
   status: ListingStatus;
   createdAt: string;
   media: ListingMedia[];
+  listingDomain?: 'PROPERTY' | 'VEHICLE';
+  residentialDetails?: { roomCount?: string; grossArea?: number } | null;
+  vehicleDetails?: { brand: string; model: string; year: number; mileage: number } | null;
 };
 type ListingsResponse = { data: Listing[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
 type PortalAccount = { id: string; connectionStatus: string; lastCheckedAt?: string | null; portal: { name: string; code: string } };
 type BulkResult = { listingId: string; success: boolean; status?: ListingStatus; jobsCreated?: number; errorCode?: string; message?: string };
 type BulkResponse = { requested: number; successful: number; failed: number; jobsCreated: number; results: BulkResult[] };
 
-const statusLabels: Record<ListingStatus, string> = { DRAFT: 'Taslak', PUBLISHING: 'Yayınlanıyor', ACTIVE: 'Aktif', ARCHIVED: 'Arşivlendi' };
-const statusStyles: Record<ListingStatus, string> = { DRAFT: 'bg-amber-50 text-amber-800 ring-amber-200', PUBLISHING: 'bg-blue-50 text-blue-800 ring-blue-200', ACTIVE: 'bg-emerald-50 text-emerald-800 ring-emerald-200', ARCHIVED: 'bg-slate-100 text-slate-700 ring-slate-200' };
+const statusLabels: Record<ListingStatus, string> = { DRAFT: 'Taslak', PUBLISHING: 'Yayınlanıyor', ACTIVE: 'Aktif', ARCHIVED: 'Arşivlendi', SUSPENDED: 'Askıda', DELETED: 'Silindi' };
+const statusStyles: Record<ListingStatus, string> = { DRAFT: 'bg-amber-50 text-amber-800 ring-amber-200', PUBLISHING: 'bg-blue-50 text-blue-800 ring-blue-200', ACTIVE: 'bg-emerald-50 text-emerald-800 ring-emerald-200', ARCHIVED: 'bg-slate-100 text-slate-700 ring-slate-200', SUSPENDED: 'bg-orange-50 text-orange-800 ring-orange-200', DELETED: 'bg-red-50 text-red-800 ring-red-200' };
 const filterOptions: Array<{ label: string; value: 'ALL' | ListingStatus }> = [{ label: 'Tümü', value: 'ALL' }, { label: 'Taslak', value: 'DRAFT' }, { label: 'Yayınlanıyor', value: 'PUBLISHING' }, { label: 'Aktif', value: 'ACTIVE' }, { label: 'Arşiv', value: 'ARCHIVED' }];
 const knownErrors: Record<string, string> = {
   LISTING_NOT_FOUND: 'İlan bulunamadı veya bu ilana erişim yetkiniz yok.',
@@ -280,7 +283,33 @@ export function ListingsPage() {
                   {cover ? <img alt="" className="h-full w-full object-cover" src={cover.url} /> : <span className="material-symbols-rounded text-5xl text-slate-400">image</span>}
                   <span className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${statusStyles[listing.status]}`}>{statusLabels[listing.status]}</span>
                 </div>
-                <div className="p-5"><p className="text-xs font-semibold text-slate-500">{listing.listingNo}</p><Link className="mt-1 block truncate text-lg font-bold hover:text-teal-700" href={`/listings/${listing.id}`}>{listing.title}</Link><p className="mt-2 text-sm text-slate-600">{listing.district}, {listing.city}</p><div className="mt-5 flex items-end justify-between gap-3"><strong className="text-base">{formatPrice(listing.price, listing.currency)}</strong><time className="text-xs text-slate-500" dateTime={listing.createdAt}>{formatDate(listing.createdAt)}</time></div></div>
+                <div className="p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-slate-500">{listing.listingNo}</p>
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${listing.listingDomain === 'VEHICLE' ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-teal-800'}`}>
+                      {listing.listingDomain === 'VEHICLE' ? 'Araç' : 'Gayrimenkul'}
+                    </span>
+                  </div>
+                  <Link className="mt-1 block truncate text-lg font-bold hover:text-teal-700" href={`/listings/${listing.id}`}>{listing.title}</Link>
+                  
+                  {listing.listingDomain === 'VEHICLE' && listing.vehicleDetails ? (
+                    <p className="mt-1 text-xs text-slate-500 font-medium">
+                      {listing.vehicleDetails.brand} {listing.vehicleDetails.model} · {listing.vehicleDetails.year} · {Number(listing.vehicleDetails.mileage).toLocaleString('tr-TR')} km
+                    </p>
+                  ) : (
+                    listing.residentialDetails && (
+                      <p className="mt-1 text-xs text-slate-500 font-medium">
+                        {listing.residentialDetails.roomCount || 'Detay belirtilmedi'} · {listing.residentialDetails.grossArea ? `${listing.residentialDetails.grossArea} m²` : ''}
+                      </p>
+                    )
+                  )}
+                  
+                  <p className="mt-2 text-sm text-slate-600">{listing.district}, {listing.city}</p>
+                  <div className="mt-5 flex items-end justify-between gap-3">
+                    <strong className="text-base">{formatPrice(listing.price, listing.currency)}</strong>
+                    <time className="text-xs text-slate-500" dateTime={listing.createdAt}>{formatDate(listing.createdAt)}</time>
+                  </div>
+                </div>
               </article>;
             })}
           </section>

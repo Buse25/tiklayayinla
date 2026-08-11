@@ -20,6 +20,7 @@ export class OrganizationApplicationResponseDto {
   @ApiPropertyOptional() rejectionReason!: string | null;
   @ApiPropertyOptional({ format: 'uuid', nullable: true }) reviewedById!: string | null;
   @ApiPropertyOptional() reviewedAt!: Date | null;
+  @ApiPropertyOptional() approvedAt!: Date | null;
   @ApiProperty() createdAt!: Date;
   @ApiProperty() updatedAt!: Date;
 }

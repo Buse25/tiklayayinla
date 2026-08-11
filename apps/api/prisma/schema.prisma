@@ -27,6 +27,7 @@ enum OrganizationApplicationStatus {
   PENDING
   APPROVED
   REJECTED
+  SUSPENDED
 }
 
 enum OrganizationRole {
@@ -44,6 +45,7 @@ enum UserStatus {
   ACTIVE
   INVITED
   SUSPENDED
+  DELETED
 }
 
 enum SubscriptionStatus {
@@ -77,11 +79,45 @@ enum PropertyType {
   OTHER
 }
 
+enum ListingDomain {
+  PROPERTY
+  VEHICLE
+}
+
+enum FuelType {
+  GASOLINE
+  DIESEL
+  HYBRID
+  ELECTRIC
+  LPG
+  OTHER
+}
+
+enum TransmissionType {
+  MANUAL
+  AUTOMATIC
+  SEMI_AUTOMATIC
+}
+
+enum VehicleBodyType {
+  SEDAN
+  HATCHBACK
+  SUV
+  COUPE
+  STATION_WAGON
+  PICKUP
+  VAN
+  MINIVAN
+  OTHER
+}
+
 enum ListingStatus {
   DRAFT
   PUBLISHING
   ACTIVE
   ARCHIVED
+  SUSPENDED
+  DELETED
 }
 
 enum ListingMediaType {
@@ -243,7 +279,8 @@ enum HousingType {
 model User {
   id                               String                    @id @default(uuid()) @db.Uuid
   email                            String                    @unique
-  passwordHash                     String
+  passwordHash                     String?
+  googleId                         String?                   @unique
   firstName                        String
   lastName                         String
   phone                            String?
@@ -251,6 +288,8 @@ model User {
   address                          String?                   @db.Text
   role                             UserRole                  @default(USER)
   status                           UserStatus                @default(ACTIVE)
+  deletedAt                        DateTime?
+  sessionVersion                   Int                       @default(0)
   emailVerified                    Boolean                   @default(false)
   emailVerifiedAt                  DateTime?
   createdAt                        DateTime                  @default(now())
@@ -305,6 +344,7 @@ model OrganizationApplication {
   rejectionReason      String?                       @db.Text
   reviewedById         String?                       @db.Uuid
   reviewedAt           DateTime?
+  approvedAt           DateTime?
   createdAt            DateTime                      @default(now())
   updatedAt            DateTime                      @updatedAt
   user                 User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -436,7 +476,8 @@ model Listing {
   price              Decimal              @db.Decimal(14, 2)
   currency           Currency             @default(TRY)
   listingType        ListingType
-  propertyType       PropertyType
+  propertyType       PropertyType?
+  listingDomain      ListingDomain        @default(PROPERTY)
   city               String
   district           String
   neighborhood       String?
@@ -444,16 +485,35 @@ model Listing {
   latitude           Decimal?             @db.Decimal(10, 7)
   longitude          Decimal?             @db.Decimal(10, 7)
   status             ListingStatus        @default(DRAFT)
+  deletedAt          DateTime?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   owner              User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   media              ListingMedia[]
   publications       ListingPublication[]
   residentialDetails ResidentialDetails?
+  vehicleDetails     VehicleDetails?
   features           ListingFeature[]
 
   @@index([ownerId, status])
   @@index([city, district])
+}
+
+model VehicleDetails {
+  listingId    String           @id @db.Uuid
+  brand        String
+  model        String
+  year         Int
+  mileage      Int
+  fuelType     FuelType
+  transmission TransmissionType
+  bodyType     VehicleBodyType?
+  enginePower  Int?
+  engineVolume Int?
+  color        String?
+  damageStatus String?
+  hasWarranty  Boolean?
+  listing      Listing          @relation(fields: [listingId], references: [id], onDelete: Cascade)
 }
 
 model ResidentialDetails {

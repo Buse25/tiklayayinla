@@ -36,7 +36,28 @@ async function proxy(request: NextRequest, { params }: RouteContext) {
     upstream = await forward(freshTokens.accessToken);
   }
 
-  const response = new NextResponse(upstream.body, { status: upstream.status, headers: { 'Content-Type': upstream.headers.get('content-type') ?? 'application/json' } });
+  if (upstream.status === 204) {
+    const response = new NextResponse(null, { status: 204 });
+    if (freshTokens) setSessionCookies(response, freshTokens);
+    return response;
+  }
+
+  const data = await upstream.arrayBuffer();
+  const headers: Record<string, string> = {
+    'Content-Type': upstream.headers.get('content-type') ?? 'application/json',
+  };
+
+  const contentDisposition = upstream.headers.get('content-disposition');
+  if (contentDisposition) {
+    headers['Content-Disposition'] = contentDisposition;
+  }
+
+  const cacheControl = upstream.headers.get('cache-control');
+  if (cacheControl) {
+    headers['Cache-Control'] = cacheControl;
+  }
+
+  const response = new NextResponse(data, { status: upstream.status, headers });
   if (freshTokens) setSessionCookies(response, freshTokens);
   return response;
   } catch {

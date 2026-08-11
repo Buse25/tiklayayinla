@@ -54,13 +54,17 @@ export function buildProfileOrganizationSummary(profile: ProfileLike, applicatio
 }
 
 export function getProfileNavigationLinks(role: ProfileRole): ProfileNavigationLink[] {
+  if (role === 'ADMIN') return [
+    { href: '/admin', label: 'Panel', adminOnly: true },
+    { href: '/admin/organization-applications', label: 'Kurumsal Başvurular', adminOnly: true },
+    { href: '/admin/listings', label: 'Tüm İlanlar', adminOnly: true },
+  ];
   return [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/profile', label: 'Profil' },
     { href: '/organization-applications', label: 'Kurumsal Başvuru' },
     { href: '/activity', label: 'Aktivite' },
-    { href: '/admin/organization-applications', label: 'Kurumsal Başvuruları Yönet', adminOnly: true },
-  ].filter((link) => !link.adminOnly || role === 'ADMIN');
+  ];
 }
 
 export function getEidsInformationMessage() {

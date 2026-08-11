@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { apiRequest, authLogin, AuthTokens, refreshTokens, User } from '@/lib/api';
+import { apiRequest, authLogin, AuthTokens, refreshTokens, User, API_URL } from '@/lib/api';
 
 const ACCESS_KEY = 'tiklayayinla.mobile.access-token';
 const REFRESH_KEY = 'tiklayayinla.mobile.refresh-token';
@@ -19,7 +19,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => { let mounted = true; (async () => { const [accessToken, refreshToken] = await Promise.all([SecureStore.getItemAsync(ACCESS_KEY), SecureStore.getItemAsync(REFRESH_KEY)]); if (!mounted) return; if (accessToken && refreshToken) { setTokens({ accessToken, refreshToken }); try { const response = await apiRequest('users/me', accessToken); if (response.ok) setUser(await response.json()); else if (response.status === 401) { const fresh = await refreshTokens(refreshToken); await persist(fresh); const me = await apiRequest('users/me', fresh.accessToken); if (me.ok) setUser(await me.json()); } } catch { await clear(); } } setReady(true); })(); return () => { mounted = false; }; }, [clear, persist]);
 
   const signIn = useCallback(async (email: string, password: string) => { const result = await authLogin(email, password); await persist(result.tokens); setUser(result.user); }, [persist]);
-  const signOut = useCallback(async () => { if (tokens?.refreshToken) await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001'}/auth/logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: tokens.refreshToken }) }).catch(() => undefined); await clear(); }, [clear, tokens]);
+  const signOut = useCallback(async () => { if (tokens?.refreshToken && API_URL) await fetch(`${API_URL}/auth/logout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: tokens.refreshToken }) }).catch(() => undefined); await clear(); }, [clear, tokens]);
   const request = useCallback(async (path: string, init?: RequestInit) => { if (!tokens) throw new Error('Oturum bulunamadı.'); let response = await apiRequest(path, tokens.accessToken, init); if (response.status === 401) { try { const fresh = await refreshTokens(tokens.refreshToken); await persist(fresh); response = await apiRequest(path, fresh.accessToken, init); } catch { await clear(); } } return response; }, [clear, persist, tokens]);
   const value = useMemo(() => ({ user, ready, signIn, signOut, request }), [ready, request, signIn, signOut, user]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

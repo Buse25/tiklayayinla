@@ -11,7 +11,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
   async validate(payload: JwtPayload) {
     if (payload.type !== 'access') return false;
-    return this.authService.validateAccessUser(payload.sub);
+    return this.authService.validateAccessUser(payload.sub, payload.sessionVersion);
   }
 }
 

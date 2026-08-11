@@ -11,6 +11,8 @@ import { ResendVerificationDto, VerificationActionResponseDto, VerificationRequi
 import type { AuthenticatedUser } from './interfaces/authenticated-user.interface';
 import { JwtAccessGuard } from './guards/jwt-access.guard';
 import { EmailVerificationService } from './email-verification.service';
+import { ForgotPasswordRequestDto, ForgotPasswordResetDto } from './dto/forgot-password.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -40,6 +42,25 @@ export class AuthController {
   @ApiUnauthorizedResponse({ description: 'E-posta veya parola geçersiz' })
   @ApiTooManyRequestsResponse({ description: 'Bir dakika içinde en fazla 10 giriş isteği gönderilebilir.' })
   async login(@Body() dto: LoginDto): Promise<AuthResponseDto> { return this.authService.login(dto); }
+  
+  @Post('google')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Google hesabı ile giriş veya kayıt yapar' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Google kimlik doğrulaması başarısız oldu' })
+  async googleLogin(@Body() dto: GoogleLoginDto): Promise<AuthResponseDto> {
+    return this.authService.loginWithGoogle(dto);
+  }
+
+  @Post('forgot-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async forgotPassword(@Body() dto: ForgotPasswordRequestDto) { return this.authService.requestForgotPassword(dto); }
+
+  @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async resetPassword(@Body() dto: ForgotPasswordResetDto): Promise<void> { return this.authService.resetForgotPassword(dto); }
 
   @Post('refresh')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })

@@ -8,6 +8,7 @@ import { CreateOrganizationApplicationDto } from './dto/create-organization-appl
 import { OrganizationApplicationResponseDto } from './dto/organization-application-response.dto';
 import { ReviewOrganizationApplicationDto } from './dto/review-organization-application.dto';
 import { EditOrganizationApplicationDto } from './dto/edit-organization-application.dto';
+import { UpdateOrganizationApplicationStatusDto } from './dto/update-organization-application-status.dto';
 
 const applicationInclude = {
   user: { select: { id: true, email: true, firstName: true, lastName: true } },
@@ -71,7 +72,7 @@ export class OrganizationsService {
     const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.organizationApplication.update({
         where: { id: applicationId },
-        data: { status: OrganizationApplicationStatus.APPROVED, reviewedById: actorUserId, reviewedAt: new Date(), rejectionReason: null },
+        data: { status: OrganizationApplicationStatus.APPROVED, reviewedById: actorUserId, reviewedAt: new Date(), approvedAt: application.approvedAt ?? new Date(), rejectionReason: null },
         include: applicationInclude,
       });
       const organization = await tx.organization.create({
@@ -118,9 +119,11 @@ export class OrganizationsService {
     this.ensureAdmin(actorRole);
     const application = await this.prisma.organizationApplication.findUnique({ where: { id: applicationId }, include: applicationInclude });
     if (!application) throw new NotFoundException('Kurumsal başvuru bulunamadı.');
-    if (application.status !== OrganizationApplicationStatus.PENDING) throw new ConflictException('Sadece PENDING başvurular reddedilebilir.');
+    if (!([OrganizationApplicationStatus.PENDING, OrganizationApplicationStatus.APPROVED, OrganizationApplicationStatus.SUSPENDED] as OrganizationApplicationStatus[]).includes(application.status)) throw new ConflictException('REJECTED başvurular yeniden durumlandırılamaz.');
 
-    const updated = await this.prisma.organizationApplication.update({
+    const ownerMembership = await this.prisma.organizationMembership.findFirst({ where: { userId: application.userId, role: OrganizationRole.OWNER }, select: { organizationId: true } });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.organizationApplication.update({
       where: { id: applicationId },
       data: {
         status: OrganizationApplicationStatus.REJECTED,
@@ -129,6 +132,9 @@ export class OrganizationsService {
         rejectionReason: dto.rejectionReason ?? 'Başvuru reddedildi.',
       },
       include: applicationInclude,
+      });
+      if (ownerMembership) await tx.organization.update({ where: { id: ownerMembership.organizationId }, data: { status: OrganizationStatus.PASSIVE } });
+      return result;
     });
 
     await this.audit.log({
@@ -150,6 +156,21 @@ export class OrganizationsService {
       orderBy: { createdAt: 'desc' },
     });
     return applications.map(toResponse);
+  }
+
+  async updateApplicationStatus(actorUserId: string, actorRole: UserRole, id: string, dto: UpdateOrganizationApplicationStatusDto): Promise<OrganizationApplicationResponseDto> {
+    this.ensureAdmin(actorRole);
+    const application = await this.prisma.organizationApplication.findUnique({ where: { id }, include: applicationInclude });
+    if (!application) throw new NotFoundException('Kurumsal başvuru bulunamadı.');
+    if ((application.status !== OrganizationApplicationStatus.APPROVED && application.status !== OrganizationApplicationStatus.SUSPENDED) || application.status === dto.status) throw new ConflictException('Bu başvuru için geçersiz durum geçişi.');
+    const membership = await this.prisma.organizationMembership.findFirst({ where: { userId: application.userId, role: OrganizationRole.OWNER }, select: { organizationId: true } });
+    const updated = await this.prisma.$transaction(async tx => {
+      const result = await tx.organizationApplication.update({ where: { id }, data: { status: dto.status, reviewedById: actorUserId, reviewedAt: new Date(), approvedAt: application.approvedAt ?? new Date() }, include: applicationInclude });
+      if (membership) await tx.organization.update({ where: { id: membership.organizationId }, data: { status: dto.status === OrganizationApplicationStatus.APPROVED ? OrganizationStatus.ACTIVE : OrganizationStatus.PASSIVE } });
+      return result;
+    });
+    await this.audit.log({ actorUserId, action: AuditAction.ORGANIZATION_APPLICATION_EDITED, entityType: AuditEntityType.ORGANIZATION, entityId: id, changes: { from: application.status, to: dto.status } });
+    return toResponse(updated);
   }
 
   async getApplicationDetail(actorUserId: string, actorRole: UserRole, id: string): Promise<OrganizationApplicationResponseDto> {
@@ -276,7 +297,7 @@ export class OrganizationsService {
     const activeApplications = await this.prisma.organizationApplication.findMany({
       where: {
         userId: actor.id,
-        status: { in: [OrganizationApplicationStatus.PENDING, OrganizationApplicationStatus.APPROVED] },
+        status: { in: [OrganizationApplicationStatus.PENDING, OrganizationApplicationStatus.APPROVED, OrganizationApplicationStatus.SUSPENDED] },
       },
       select: { status: true },
       orderBy: { createdAt: 'desc' },
@@ -284,7 +305,7 @@ export class OrganizationsService {
     if (activeApplications.some((application) => application.status === OrganizationApplicationStatus.PENDING)) {
       throw new ConflictException({ code: 'ORGANIZATION_APPLICATION_ALREADY_PENDING', message: 'Kurumsal başvurunuz incelemede.' });
     }
-    if (activeApplications.some((application) => application.status === OrganizationApplicationStatus.APPROVED)) {
+    if (activeApplications.some((application) => application.status === OrganizationApplicationStatus.APPROVED || application.status === OrganizationApplicationStatus.SUSPENDED)) {
       throw new ConflictException({ code: 'ORGANIZATION_APPLICATION_ALREADY_APPROVED', message: 'Kurumsal hesabınız onaylandı.' });
     }
 
@@ -301,7 +322,7 @@ export class OrganizationsService {
     if (pending) throw new ConflictException({ code: 'ORGANIZATION_APPLICATION_ALREADY_PENDING', message: 'Kurumsal başvurunuz incelemede.' });
     if (vkn) {
       const duplicateVkn = await this.prisma.organizationApplication.findFirst({
-        where: { vkn, status: { in: [OrganizationApplicationStatus.PENDING, OrganizationApplicationStatus.APPROVED] } },
+        where: { vkn, status: { in: [OrganizationApplicationStatus.PENDING, OrganizationApplicationStatus.APPROVED, OrganizationApplicationStatus.SUSPENDED] } },
         select: { id: true },
       });
       if (duplicateVkn) throw new ConflictException({ code: 'ORGANIZATION_APPLICATION_ALREADY_PENDING', message: 'Bu VKN ile aktif kurumsal başvuru zaten mevcut.' });
@@ -380,6 +401,7 @@ function toResponse(application: ApplicationRecord): OrganizationApplicationResp
     rejectionReason: application.rejectionReason,
     reviewedById: application.reviewedById,
     reviewedAt: application.reviewedAt,
+    approvedAt: application.approvedAt,
     createdAt: application.createdAt,
     updatedAt: application.updatedAt,
   };
