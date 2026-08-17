@@ -1,6 +1,130 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
-export default function OrganizationApplicationsScreen() { const { request } = useAuth(); const [items, setItems] = useState<any[]>([]); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [form, setForm] = useState({ organizationName: '', organizationType: 'REAL_ESTATE_AGENCY', country: 'Türkiye', city: '', district: '', address: '', authorizedPersonName: '', licenseNumber: '' }); const load = useCallback(async () => { const r = await request('organizations/applications'); if (r.ok) setItems(await r.json()); setLoading(false); }, [request]); useEffect(() => { void load(); }, [load]); function set(key: string, value: string) { setForm((current) => ({ ...current, [key]: value })); } async function submit() { setSaving(true); setError(''); const r = await request('organizations/applications', { method: 'POST', body: JSON.stringify(form) }); if (!r.ok) { const p = await r.json().catch(() => ({})); setError(typeof p.message === 'string' ? p.message : 'Başvuru oluşturulamadı.'); } else await load(); setSaving(false); } return <ScrollView contentContainerStyle={styles.content}><Text style={styles.title}>Kurumsal Hesap</Text>{loading ? <ActivityIndicator color={Colors.light.primary} /> : items.length ? items.map((item) => <View key={item.id} style={styles.card}><Text style={styles.name}>{item.organizationName}</Text><Text style={styles.status}>{item.status}</Text><Text style={styles.muted}>{item.city}, {item.district}</Text>{item.rejectionReason ? <Text style={styles.error}>{item.rejectionReason}</Text> : null}</View>) : <View>{<Text style={styles.muted}>Kurumsal başvuru bulunmuyor. Bilgilerinizi gönderin.</Text>}{error ? <Text style={styles.error}>{error}</Text> : null}{(['organizationName', 'city', 'district', 'address', 'authorizedPersonName'] as const).map((key) => <TextInput key={key} placeholder={key} value={form[key]} onChangeText={(v) => set(key, v)} style={styles.input} />)}<TextInput placeholder="REAL_ESTATE_AGENCY veya AUTO_DEALER" value={form.organizationType} onChangeText={(v) => set('organizationType', v)} style={styles.input} /><TextInput placeholder="EİDS yetki/lisans numarası" value={form.licenseNumber} onChangeText={(v) => set('licenseNumber', v)} style={styles.input} /><Pressable disabled={saving} onPress={() => void submit()} style={styles.button}><Text style={styles.buttonText}>{saving ? 'Gönderiliyor...' : 'Başvuru Gönder'}</Text></Pressable></View>}</ScrollView>; }
-const styles = StyleSheet.create({ content: { backgroundColor: Colors.light.background, flexGrow: 1, padding: 20 }, title: { color: Colors.light.text, fontSize: 28, fontWeight: '800', marginBottom: 20 }, card: { backgroundColor: Colors.light.card, borderColor: Colors.light.border, borderRadius: 16, borderWidth: 1, marginBottom: 12, padding: 16 }, name: { color: Colors.light.text, fontSize: 16, fontWeight: '800' }, status: { color: Colors.light.primary, fontWeight: '800', marginTop: 8 }, muted: { color: Colors.light.muted, lineHeight: 21, marginTop: 5 }, input: { backgroundColor: Colors.light.card, borderColor: Colors.light.border, borderRadius: 10, borderWidth: 1, color: Colors.light.text, marginTop: 10, padding: 13 }, button: { alignItems: 'center', backgroundColor: Colors.light.primary, borderRadius: 12, marginTop: 16, padding: 14 }, buttonText: { color: '#FFF', fontWeight: '800' }, error: { backgroundColor: '#FFF0EE', borderRadius: 12, color: Colors.light.error, marginTop: 10, padding: 12 } });
+import { BackButton } from '../components/back-button';
+
+type Profile = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string | null;
+  role: string;
+  organizationId?: string | null;
+  organizationName?: string | null;
+  organizationType?: string | null;
+  membershipStatus?: string | null;
+  organizationApplicationStatus?: string | null;
+};
+
+export default function OrganizationApplicationsScreen() {
+  const { request } = useAuth();
+  const [items, setItems] = useState<any[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [appRes, meRes] = await Promise.all([
+        request('organizations/applications'),
+        request('users/me'),
+      ]);
+
+      if (appRes.ok) setItems(await appRes.json());
+      if (meRes.ok) setProfile(await meRes.json());
+    } catch (e) {
+      setError('Veriler yüklenirken bir hata oluştu.');
+    } finally {
+      setLoading(false);
+    }
+  }, [request]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const hasActiveOrg = profile?.membershipStatus === 'ACTIVE';
+
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      <BackButton />
+      <Text style={styles.title}>Kurumsal Hesap</Text>
+
+      {loading ? (
+        <ActivityIndicator color={Colors.light.primary} />
+      ) : hasActiveOrg ? (
+        <View style={styles.card}>
+          <Text style={styles.activeBadge}>AKTİF KURUMSAL HESAP</Text>
+          <Text style={styles.name}>{profile?.organizationName || 'Kurum Adı Belirtilmemiş'}</Text>
+          <Text style={styles.status}>Durum: Aktif Üye</Text>
+          <Text style={styles.muted}>
+            Sektör: {profile?.organizationType === 'REAL_ESTATE_AGENCY' ? 'Emlak Ofisi' : 'Oto Galeri'}
+          </Text>
+          <Text style={styles.infoText}>
+            Kurumsal hesabınız aktiftir. Portallara ilan gönderebilir ve kurumsal özelliklerden faydalanabilirsiniz.
+          </Text>
+        </View>
+      ) : items.length ? (
+        items.map((item) => (
+          <View key={item.id} style={styles.card}>
+            <Text style={styles.name}>{item.organizationName}</Text>
+            <Text style={styles.status}>
+              Başvuru Durumu: {
+                item.status === 'PENDING' ? 'İncelemede' :
+                item.status === 'APPROVED' ? 'Onaylandı' :
+                item.status === 'REJECTED' ? 'Reddedildi' : item.status
+              }
+            </Text>
+            <Text style={styles.muted}>{item.city}, {item.district}</Text>
+            {item.rejectionReason ? (
+              <Text style={styles.errorText}>{item.rejectionReason}</Text>
+            ) : null}
+          </View>
+        ))
+      ) : (
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>Kurumsal Başvuru Bulunmuyor</Text>
+          <Text style={styles.infoDescription}>
+            Kurumsal hesap başvuruları web paneli üzerinden yapılmaktadır. Kurumsal hesaba geçiş yapmak için lütfen web tarayıcınızdan sisteme giriş yaparak başvurunuzu iletiniz.
+          </Text>
+        </View>
+      )}
+
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { backgroundColor: Colors.light.background, flexGrow: 1, padding: 20, paddingBottom: 40 },
+  title: { color: Colors.light.text, fontSize: 28, fontWeight: '800', marginBottom: 20 },
+  card: { backgroundColor: Colors.light.card, borderColor: Colors.light.border, borderRadius: 16, borderWidth: 1, marginBottom: 12, padding: 16 },
+  activeBadge: { color: Colors.light.primary, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 8 },
+  name: { color: Colors.light.text, fontSize: 18, fontWeight: '800' },
+  status: { color: Colors.light.primary, fontWeight: '800', marginTop: 8 },
+  muted: { color: Colors.light.muted, lineHeight: 21, marginTop: 5 },
+  infoText: { color: Colors.light.secondary, fontSize: 13, marginTop: 12, lineHeight: 18 },
+  infoCard: {
+    backgroundColor: Colors.light.soft,
+    borderColor: Colors.light.border,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 20,
+    marginTop: 10,
+  },
+  infoTitle: {
+    color: Colors.light.primary,
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  infoDescription: {
+    color: Colors.light.text,
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  errorText: { backgroundColor: '#FFF0EE', borderRadius: 12, color: Colors.light.error, marginTop: 10, padding: 12 }
+});

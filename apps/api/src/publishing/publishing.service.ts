@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, Logger, NotFoundException, OnModuleInit, UnprocessableEntityException } from '@nestjs/common';
-import { AttemptStatus, AuditAction, AuditEntityType, ConnectionStatus, Prisma, PublicationAction, PublicationStatus } from '@prisma/client';
+import { AttemptStatus, AuditAction, AuditEntityType, ConnectionStatus, ListingDomain, Prisma, PublicationAction, PublicationStatus } from '@prisma/client';
 import type { CanonicalListing, PortalCode } from '@tiklayayinla/shared-types';
 import { randomUUID } from 'crypto';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
@@ -10,7 +10,8 @@ import { RabbitMqService } from './rabbitmq.service';
 import { RedisService } from '../redis/redis.service';
 import type { PublishListingJob } from './publishing.types';
 import { AuditService } from '../audit/audit.service';
-import { assertPropertySectorAccess } from '../listings/sector-guard';
+import { assertPropertySectorAccess, assertVehicleSectorAccess } from '../listings/sector-guard';
+import { EidsListingAuthorizationService } from '../eids/eids-listing-authorization.service';
 
 type PublishRequest = { portalAccountIds: string[] };
 type RepublishRequest = { publicationIds: string[] };
@@ -32,6 +33,7 @@ export class PublishingService implements OnModuleInit {
     private readonly listingStatus: ListingStatusService,
     private readonly redis: RedisService,
     private readonly audit: AuditService,
+    private readonly eidsAuthorization: EidsListingAuthorizationService,
   ) {}
 
   async onModuleInit() {
@@ -39,9 +41,10 @@ export class PublishingService implements OnModuleInit {
   }
 
   async requestPublish(user: AuthenticatedUser, listingId: string, request: PublishRequest) {
-    assertPropertySectorAccess(user, 'publish');
-    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: user.id }, select: { id: true, status: true, media: { select: { id: true }, take: 1 } } });
+    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: user.id }, select: { id: true, status: true, listingDomain: true, media: { select: { id: true }, take: 1 } } });
     if (!listing) throw new NotFoundException('İlan bulunamadı.');
+    assertDomainSectorAccess(user, listing.listingDomain, 'publish');
+    await this.eidsAuthorization.assertPublishAllowed(user.id, listingId, listing.listingDomain);
     if (!listing.media.length) throw new UnprocessableEntityException('Yayınlama için ilanda en az bir görsel bulunmalıdır.');
 
     if (listing.status === 'ARCHIVED') throw new ConflictException('Arşivlenmiş ilan yayınlanamaz.');
@@ -114,9 +117,10 @@ export class PublishingService implements OnModuleInit {
   }
 
   async requestRepublish(user: AuthenticatedUser, listingId: string, request: RepublishRequest) {
-    assertPropertySectorAccess(user, 'republish');
-    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: user.id }, select: { id: true, status: true, media: { select: { id: true }, take: 1 } } });
+    const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: user.id }, select: { id: true, status: true, listingDomain: true, media: { select: { id: true }, take: 1 } } });
     if (!listing) throw new NotFoundException('İlan bulunamadı.');
+    assertDomainSectorAccess(user, listing.listingDomain, 'republish');
+    await this.eidsAuthorization.assertPublishAllowed(user.id, listingId, listing.listingDomain);
     if (!listing.media.length) throw new UnprocessableEntityException('Yeniden yayınlama için ilanda en az bir görsel bulunmalıdır.');
     if (listing.status === 'ARCHIVED') throw new ConflictException('Arşivlenmiş ilan yeniden yayınlanamaz.');
 
@@ -266,6 +270,14 @@ function statusCodeFrom(error: unknown): number | undefined {
   const candidate = error as { status?: unknown; statusCode?: unknown; response?: { status?: unknown } };
   const value = candidate.status ?? candidate.statusCode ?? candidate.response?.status;
   return typeof value === 'number' ? value : undefined;
+}
+
+function assertDomainSectorAccess(user: AuthenticatedUser, domain: ListingDomain, operation: 'publish' | 'republish'): void {
+  if (domain === ListingDomain.VEHICLE) {
+    assertVehicleSectorAccess(user, operation);
+    return;
+  }
+  assertPropertySectorAccess(user, operation);
 }
 
 function safePublishingError(error: unknown): string {

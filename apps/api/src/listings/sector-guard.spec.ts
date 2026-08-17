@@ -1,6 +1,6 @@
 import { ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
 import { MembershipStatus, OrganizationType, UserRole } from '@prisma/client';
-import { assertPropertySectorAccess } from './sector-guard';
+import { assertPropertySectorAccess, assertVehicleSectorAccess } from './sector-guard';
 
 describe('assertPropertySectorAccess', () => {
   it('allows admin users for any sector', () => {
@@ -35,5 +35,17 @@ describe('assertPropertySectorAccess', () => {
       expect(error).toBeInstanceOf(ForbiddenException);
       expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'ORGANIZATION_SECTOR_NOT_SUPPORTED' });
     }
+  });
+});
+
+describe('assertVehicleSectorAccess', () => {
+  it('allows vehicle publish and republish for an active auto dealer', () => {
+    const user = { role: UserRole.USER, membershipStatus: MembershipStatus.ACTIVE, organizationType: OrganizationType.AUTO_DEALER };
+    expect(() => assertVehicleSectorAccess(user, 'publish')).not.toThrow();
+    expect(() => assertVehicleSectorAccess(user, 'republish')).not.toThrow();
+  });
+
+  it('does not route vehicle publish through the property guard', () => {
+    expect(() => assertVehicleSectorAccess({ role: UserRole.USER, membershipStatus: MembershipStatus.ACTIVE, organizationType: OrganizationType.REAL_ESTATE_AGENCY }, 'publish')).toThrow(ForbiddenException);
   });
 });

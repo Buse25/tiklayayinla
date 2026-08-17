@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { authenticatedFetch } from '../../lib/api-client';
 import { canUsePropertyListings, sectorRestrictionMessage, type OrganizationType } from '../../lib/sector';
 import { AppShell } from '../layout/app-shell';
@@ -77,6 +78,18 @@ export function ListingsPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<'ALL' | ListingStatus>('ALL');
   const [reloadKey, setReloadKey] = useState(0);
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const statusParam = searchParams.get('status') as 'ALL' | ListingStatus | null;
+    if (statusParam && ['DRAFT', 'PUBLISHING', 'ACTIVE', 'ARCHIVED', 'SUSPENDED', 'DELETED'].includes(statusParam)) {
+      setStatusFilter(statusParam);
+    } else {
+      setStatusFilter('ALL');
+    }
+    setPage(1);
+  }, [searchParams]);
   const [result, setResult] = useState<ListingsResponse | null>(null);
   const [portalAccounts, setPortalAccounts] = useState<PortalAccount[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);

@@ -22,7 +22,6 @@ export class BulkListingsService {
   }
 
   async publish(user: AuthenticatedUser, listingIds: string[], portalAccountIds: string[]): Promise<BulkListingsResponseDto> {
-    assertPropertySectorAccess(user, 'publish');
     return this.run(listingIds, async (listingId) => {
       const result = await this.publishing.requestPublish(user, listingId, { portalAccountIds });
       return { listingId, success: true, jobsCreated: result.queuedJobCount };
@@ -30,7 +29,6 @@ export class BulkListingsService {
   }
 
   async republish(user: AuthenticatedUser, listingIds: string[]): Promise<BulkListingsResponseDto> {
-    assertPropertySectorAccess(user, 'republish');
     return this.run(listingIds, async (listingId) => {
       const listing = await this.prisma.listing.findFirst({ where: { id: listingId, ownerId: user.id }, select: { id: true } });
       if (!listing) throw new NotFoundException('İlan bulunamadı.');

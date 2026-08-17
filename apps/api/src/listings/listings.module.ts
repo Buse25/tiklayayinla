@@ -15,6 +15,7 @@ import { ValueNormalizerService } from './import/mapping/value-normalizer.servic
 import { ImportAnalysisStoreService } from './import/mapping/import-analysis-store.service';
 import { ListingImportMappingService } from './import/mapping/listing-import-mapping.service';
 import { BulkListingsService } from './bulk-listings.service';
+import { EidsModule } from '../eids/eids.module';
 
-@Module({ controllers: [ListingsController, ListingMediaController, ListingImportController], providers: [ListingsService, BulkListingsService, ListingMediaService, ListingImportService, CsvListingParserService, CsvListingValidatorService, SourceFileAnalyzerService, CsvSourceAnalyzerService, JsonSourceAnalyzerService, FieldMappingService, ValueNormalizerService, ImportAnalysisStoreService, ListingImportMappingService] })
+@Module({ imports: [EidsModule], controllers: [ListingsController, ListingMediaController, ListingImportController], providers: [ListingsService, BulkListingsService, ListingMediaService, ListingImportService, CsvListingParserService, CsvListingValidatorService, SourceFileAnalyzerService, CsvSourceAnalyzerService, JsonSourceAnalyzerService, FieldMappingService, ValueNormalizerService, ImportAnalysisStoreService, ListingImportMappingService] })
 export class ListingsModule {}

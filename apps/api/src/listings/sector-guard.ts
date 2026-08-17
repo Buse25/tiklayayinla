@@ -51,7 +51,7 @@ export function propertySectorLabel(user: Pick<AuthenticatedUser, 'organizationT
   return user.organizationType;
 }
 
-export type VehicleSectorOperation = 'create' | 'update' | 'status' | 'remove';
+export type VehicleSectorOperation = 'create' | 'update' | 'status' | 'remove' | 'publish' | 'republish';
 
 export function assertVehicleSectorAccess(
   user: Pick<AuthenticatedUser, 'organizationType' | 'membershipStatus' | 'role' | 'organizationApplicationStatus'>,

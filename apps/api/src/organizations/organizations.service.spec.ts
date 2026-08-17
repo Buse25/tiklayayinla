@@ -11,6 +11,7 @@ describe('OrganizationsService', () => {
   let prisma: PrismaService;
   let audit: AuditService;
   let service: OrganizationsService;
+  let eids: { isConfigured: jest.Mock; getIdentityStatus: jest.Mock };
   let tx: {
     organizationApplication: { update: jest.Mock };
     organization: { create: jest.Mock };
@@ -37,7 +38,33 @@ describe('OrganizationsService', () => {
       $transaction: jest.fn(async (callback: (transaction: typeof tx) => unknown) => callback(tx)),
     } as unknown as PrismaService;
     audit = { log: jest.fn() } as unknown as AuditService;
-    service = new OrganizationsService(prisma, audit);
+    eids = { isConfigured: jest.fn().mockResolvedValue(false), getIdentityStatus: jest.fn() };
+    service = new OrganizationsService(prisma, audit, undefined, eids as never);
+  });
+
+  it('allows the existing flow when EİDS is not configured', async () => {
+    mockEligibilityForCreate();
+    (prisma.organizationApplication.create as jest.Mock).mockResolvedValue(applicationRecord());
+
+    await expect(service.createApplication({ id: userId, role: UserRole.USER }, baseApplicationDto())).resolves.toMatchObject({ status: OrganizationApplicationStatus.PENDING });
+    expect(eids.getIdentityStatus).not.toHaveBeenCalled();
+  });
+
+  it('allows a verified identity when EİDS is configured', async () => {
+    eids.isConfigured.mockResolvedValue(true);
+    eids.getIdentityStatus.mockResolvedValue({ configured: true, status: 'VERIFIED', verified: true, verifiedAt: new Date() });
+    mockEligibilityForCreate();
+    (prisma.organizationApplication.create as jest.Mock).mockResolvedValue(applicationRecord());
+
+    await expect(service.createApplication({ id: userId, role: UserRole.USER }, baseApplicationDto())).resolves.toMatchObject({ status: OrganizationApplicationStatus.PENDING });
+  });
+
+  it.each(['NOT_VERIFIED', 'PENDING', 'FAILED'] as const)('rejects %s identity when EİDS is configured', async (status) => {
+    eids.isConfigured.mockResolvedValue(true);
+    eids.getIdentityStatus.mockResolvedValue({ configured: true, status, verified: false, verifiedAt: null });
+
+    await expect(service.createApplication({ id: userId, role: UserRole.USER }, baseApplicationDto())).rejects.toThrow('Kurumsal başvuru yapabilmek için önce EİDS kimlik doğrulamasını tamamlamalısınız.');
+    expect(prisma.organizationApplication.create).not.toHaveBeenCalled();
   });
 
   it('creates a pending real estate application without storing license number', async () => {

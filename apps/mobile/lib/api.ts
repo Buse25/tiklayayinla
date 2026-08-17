@@ -1,5 +1,7 @@
 const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 export const API_URL = configuredApiUrl ? configuredApiUrl.replace(/\/$/, '') : '';
+const configuredWebUrl = process.env.EXPO_PUBLIC_WEB_URL?.trim();
+export const WEB_URL = (configuredWebUrl || API_URL.replace(/:\d+(\/api\/v1)?$/, ':3000') || 'http://localhost:3000').replace(/\/$/, '');
 
 function requireApiUrl(): string {
   if (!API_URL) throw new Error('API adresi ayarlı değil. Fiziksel cihaz için EXPO_PUBLIC_API_URL değerini yerel ağ IP adresiyle tanımlayın.');
@@ -8,6 +10,10 @@ function requireApiUrl(): string {
 
 export type AuthTokens = { accessToken: string; refreshToken: string };
 
+// These values are verified against apps/api/prisma/schema.prisma (UserRole).
+export const UserRole = { ADMIN: 'ADMIN', USER: 'USER' } as const;
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
 export async function authLogin(email: string, password: string): Promise<{ tokens: AuthTokens; user: User }> {
   const response = await fetch(`${requireApiUrl()}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
   const payload = await readPayload(response);
@@ -15,7 +21,11 @@ export async function authLogin(email: string, password: string): Promise<{ toke
   return { tokens: payload as AuthTokens, user: (payload as AuthTokens & { user: User }).user };
 }
 
-export type User = { id: string; email: string; firstName: string; lastName: string; role: string; status: string };
+export type User = { id: string; email: string; firstName: string; lastName: string; role: UserRole; status: string };
+
+export function isAdmin(user: User | null): boolean {
+  return user?.role === UserRole.ADMIN;
+}
 
 export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
   const response = await fetch(`${requireApiUrl()}/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken }) });

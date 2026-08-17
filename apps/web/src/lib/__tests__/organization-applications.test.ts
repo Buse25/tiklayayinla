@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { getLicenseNumberRequirement, getOrganizationApplicationStatusBadge, getOrganizationApplicationViewState, normalizeApplicationLicenseNumber } from '../organization-applications';
+import { getLicenseNumberRequirement, getOrganizationApplicationStatusBadge, getOrganizationApplicationViewState, isCorporateApplicationBlockedByEids, normalizeApplicationLicenseNumber } from '../organization-applications';
 
 test('real estate selection hides the license number field', () => {
   const requirement = getLicenseNumberRequirement('REAL_ESTATE_AGENCY');
@@ -40,4 +40,10 @@ test('badge text is human readable for profile link', () => {
   assert.equal(getOrganizationApplicationStatusBadge('PENDING'), 'İncelemede');
   assert.equal(getOrganizationApplicationStatusBadge('APPROVED'), 'Onaylandı');
   assert.equal(getOrganizationApplicationStatusBadge('REJECTED'), 'Reddedildi');
+});
+
+test('corporate application EİDS prerequisite follows configured state', () => {
+  assert.equal(isCorporateApplicationBlockedByEids({ configured: false, verified: false }), false);
+  assert.equal(isCorporateApplicationBlockedByEids({ configured: true, verified: true }), false);
+  assert.equal(isCorporateApplicationBlockedByEids({ configured: true, verified: false }), true);
 });

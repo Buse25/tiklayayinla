@@ -12,15 +12,18 @@ import { createHmac, randomInt, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { MyProfileResponseDto } from './dto/my-profile-response.dto';
-import { AuditAction, AuditEntityType, MembershipStatus, OrganizationApplicationStatus, Prisma, UserRole, UserStatus } from '@prisma/client';
+import { AuditAction, AuditEntityType, EidsIdentityStatus, EidsVerificationMethod, MembershipStatus, OrganizationApplicationStatus, PhoneVerificationMethod, Prisma, UserRole, UserStatus } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { PasswordCodeResponseDto } from './dto/password-code-response.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { EidsService, type EidsProfileStatus } from '../eids/eids.service';
+import { AdminUserResponseDto } from './dto/admin-user-response.dto';
+import { normalizePhone } from './phone-normalization';
 
 const profileSelect = {
-  id: true, email: true, firstName: true, lastName: true, phone: true, about: true, address: true,
+  id: true, email: true, firstName: true, lastName: true, phone: true, phoneVerifiedAt: true, phoneVerificationMethod: true, emailVerified: true, emailVerifiedAt: true, about: true, address: true,
   role: true, status: true, createdAt: true, updatedAt: true,
   organizationMemberships: {
     where: { status: MembershipStatus.ACTIVE },
@@ -30,9 +33,20 @@ const profileSelect = {
   },
 } as const;
 
+const adminUserSelect = {
+  id: true, firstName: true, lastName: true, email: true, emailVerified: true, emailVerifiedAt: true,
+  phone: true, phoneVerifiedAt: true, phoneVerificationMethod: true, role: true, status: true, createdAt: true,
+  eidsIdentity: { select: { status: true, verificationMethod: true, verifiedAt: true } },
+  organizationMemberships: {
+    where: { status: MembershipStatus.ACTIVE }, orderBy: { createdAt: 'asc' }, take: 1,
+    select: { status: true, organization: { select: { id: true, name: true, type: true } } },
+  },
+  organizationApplications: { orderBy: { createdAt: 'desc' }, take: 1, select: { status: true } },
+} as const;
+
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly mail: MailService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly mail: MailService, private readonly eids: EidsService) {}
 
   async getMyProfile(userId: string): Promise<MyProfileResponseDto> {
     const profile = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: profileSelect });
@@ -41,7 +55,24 @@ export class UsersService {
       orderBy: { createdAt: 'desc' },
       select: { status: true },
     });
-    return toProfileResponse(profile, latestApp?.status ?? null);
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { userId },
+      include: { plan: true },
+    });
+    return toProfileResponse(profile, latestApp?.status ?? null, subscription, await this.eids.getIdentityStatus(userId));
+  }
+
+  async listAdminUsers(actorRole: UserRole): Promise<AdminUserResponseDto[]> {
+    this.ensureAdmin(actorRole);
+    const users = await this.prisma.user.findMany({ orderBy: { createdAt: 'desc' }, select: adminUserSelect });
+    return users.map(toAdminUserResponse);
+  }
+
+  async getAdminUser(actorRole: UserRole, userId: string): Promise<AdminUserResponseDto> {
+    this.ensureAdmin(actorRole);
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: adminUserSelect });
+    if (!user) throw new NotFoundException('Kullanıcı bulunamadı.');
+    return toAdminUserResponse(user);
   }
 
   async updateUserStatus(actorRole: UserRole, userId: string, dto: UpdateUserStatusDto): Promise<void> {
@@ -57,14 +88,62 @@ export class UsersService {
   }
 
   async updateMyProfile(userId: string, dto: UpdateMyProfileDto): Promise<MyProfileResponseDto> {
-    const profile = await this.prisma.user.update({ where: { id: userId }, data: dto, select: profileSelect });
+    const profile = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { phone: true } });
+      const normalizedPhone = dto.phone === undefined ? undefined : normalizePhone(dto.phone);
+      const phoneChanged = dto.phone !== undefined && current.phone !== normalizedPhone;
+      const { phone: _phone, ...profileFields } = dto;
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: {
+          ...profileFields,
+          ...(dto.phone !== undefined ? { phone: normalizedPhone } : {}),
+          ...(phoneChanged ? { phoneVerifiedAt: null, phoneVerificationMethod: null } : {}),
+        },
+        select: profileSelect,
+      });
+      if (phoneChanged) await tx.phoneVerificationCode.updateMany({ where: { userId, consumedAt: null, invalidatedAt: null }, data: { invalidatedAt: new Date() } });
+      return updated;
+    });
     if (Object.keys(dto).length) await this.audit.log({ actorUserId: userId, action: AuditAction.USER_PROFILE_UPDATED, entityType: AuditEntityType.USER, entityId: userId, changes: { changedFields: Object.keys(dto) } });
     const latestApp = await this.prisma.organizationApplication.findFirst({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       select: { status: true },
     });
-    return toProfileResponse(profile, latestApp?.status ?? null);
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { userId },
+      include: { plan: true },
+    });
+    return toProfileResponse(profile, latestApp?.status ?? null, subscription, await this.eids.getIdentityStatus(userId));
+  }
+
+  async manuallyVerifyPhone(actorUserId: string, actorRole: UserRole, userId: string): Promise<MyProfileResponseDto> {
+    if (actorRole !== UserRole.ADMIN) throw new ForbiddenException('Bu işlem için admin yetkisi gerekir.');
+
+    const profile = await this.prisma.$transaction(async (tx) => {
+      const target = await tx.user.findUnique({ where: { id: userId }, select: { phone: true } });
+      if (!target) throw new NotFoundException('Kullanıcı bulunamadı.');
+      if (!target.phone) throw new ConflictException('Telefon numarası bulunmayan kullanıcı doğrulanamaz.');
+
+      return tx.user.update({
+        where: { id: userId },
+        data: { phoneVerifiedAt: new Date(), phoneVerificationMethod: PhoneVerificationMethod.ADMIN },
+        select: profileSelect,
+      });
+    });
+
+    await this.audit.log({
+      actorUserId,
+      action: AuditAction.PHONE_VERIFICATION_ADMIN,
+      entityType: AuditEntityType.USER,
+      entityId: userId,
+      changes: { method: PhoneVerificationMethod.ADMIN },
+    });
+
+    const latestApp = await this.prisma.organizationApplication.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' }, select: { status: true } });
+    const subscription = await this.prisma.subscription.findFirst({ where: { userId }, include: { plan: true } });
+    return toProfileResponse(profile, latestApp?.status ?? null, subscription, await this.eids.getIdentityStatus(userId));
   }
 
   async requestPasswordCode(userId: string): Promise<PasswordCodeResponseDto> {
@@ -124,6 +203,10 @@ export class UsersService {
       await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
     });
   }
+
+  private ensureAdmin(role: UserRole): void {
+    if (role !== UserRole.ADMIN) throw new ForbiddenException('Bu işlem için admin yetkisi gerekir.');
+  }
 }
 
 function hashCode(code: string): string { return createHmac('sha256', requiredEnv('JWT_ACCESS_SECRET')).update(code).digest('hex'); }
@@ -132,12 +215,49 @@ function maskEmail(email: string): string { const [local, domain = ''] = email.s
 function requiredEnv(name: string): string { const value = process.env[name]; if (!value) throw new Error(`${name} environment variable must be set.`); return value; }
 
 type ProfileRecord = Prisma.UserGetPayload<{ select: typeof profileSelect }>;
+type AdminUserRecord = Prisma.UserGetPayload<{ select: typeof adminUserSelect }>;
 
-function toProfileResponse(profile: ProfileRecord, applicationStatus?: OrganizationApplicationStatus | null): MyProfileResponseDto {
+function toAdminUserResponse(user: AdminUserRecord): AdminUserResponseDto {
+  const membership = user.organizationMemberships[0];
+  return {
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    emailVerified: user.emailVerified,
+    emailVerifiedAt: user.emailVerifiedAt,
+    phone: user.phone,
+    phoneVerified: user.phoneVerifiedAt !== null,
+    phoneVerifiedAt: user.phoneVerifiedAt,
+    phoneVerificationMethod: user.phoneVerificationMethod,
+    role: user.role,
+    status: user.status,
+    createdAt: user.createdAt,
+    latestApplicationStatus: user.organizationApplications[0]?.status ?? null,
+    organization: membership ? { id: membership.organization.id, name: membership.organization.name, type: membership.organization.type, membershipStatus: membership.status } : null,
+    eidsStatus: user.eidsIdentity?.status ?? EidsIdentityStatus.NOT_VERIFIED,
+    eidsVerificationMethod: user.eidsIdentity?.verificationMethod ?? null,
+    eidsVerifiedAt: user.eidsIdentity?.verifiedAt ?? null,
+  };
+}
+
+function toProfileResponse(
+  profile: ProfileRecord,
+  applicationStatus?: OrganizationApplicationStatus | null,
+  subscription?: any | null,
+  eids?: EidsProfileStatus,
+): MyProfileResponseDto {
   const membership = profile.organizationMemberships[0];
   const { organizationMemberships, ...user } = profile;
+  const currentPlan = subscription ? {
+    id: subscription.plan.id,
+    name: subscription.plan.name,
+    status: subscription.status,
+  } : null;
   return {
     ...user,
+    phoneVerified: profile.phoneVerifiedAt !== null,
+    eids: eids ?? { configured: false, status: EidsIdentityStatus.NOT_VERIFIED, verified: false, verifiedAt: null, verificationMethod: null },
     organization: membership ? {
       organizationId: membership.organization.id,
       organizationName: membership.organization.name,
@@ -149,5 +269,6 @@ function toProfileResponse(profile: ProfileRecord, applicationStatus?: Organizat
       address: (membership.organization as any).address ?? null,
     } : { organizationId: null, organizationName: null, organizationType: null, membershipRole: null, membershipStatus: null, city: null, district: null, address: null },
     organizationApplicationStatus: applicationStatus ?? null,
+    currentPlan,
   };
 }

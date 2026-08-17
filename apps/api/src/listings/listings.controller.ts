@@ -19,13 +19,14 @@ import { ListingsService } from './listings.service';
 import { BulkListingsService } from './bulk-listings.service';
 import { BulkListingsResponseDto, BulkListingStatusDto, BulkPublishListingsDto, BulkRepublishListingsDto } from './dto/bulk-listings.dto';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { EidsListingAuthorizationService } from '../eids/eids-listing-authorization.service';
 
 @ApiTags('Listings')
 @ApiBearerAuth()
 @UseGuards(JwtAccessGuard)
 @Controller('listings')
 export class ListingsController {
-  constructor(private readonly listings: ListingsService, private readonly publishing: PublishingService, private readonly bulk: BulkListingsService) {}
+  constructor(private readonly listings: ListingsService, private readonly publishing: PublishingService, private readonly bulk: BulkListingsService, private readonly eidsAuthorization: EidsListingAuthorizationService) {}
 
   @Get('admin/all')
   @UseGuards(AdminGuard)
@@ -110,6 +111,18 @@ export class ListingsController {
   @ApiOkResponse({ type: BulkListingsResponseDto })
   @ApiUnprocessableEntityResponse()
   bulkRepublish(@CurrentUser() user: AuthenticatedUser, @Body() dto: BulkRepublishListingsDto) { return this.bulk.republish(user, dto.listingIds); }
+
+  @Post(':id/eids/authorization')
+  @ApiOperation({ summary: 'İlan için EİDS yetkilendirmesini başlatır' })
+  @ApiOkResponse({ description: 'EİDS ilan yetkilendirmesi başlatıldı veya tamamlandı.' })
+  @ApiNotFoundResponse() @ApiConflictResponse() @ApiUnprocessableEntityResponse()
+  authorizeEids(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string) { return this.eidsAuthorization.startAuthorization(user, id); }
+
+  @Get(':id/eids/authorization')
+  @ApiOperation({ summary: 'İlanın EİDS yetkilendirme durumunu döndürür' })
+  @ApiOkResponse()
+  @ApiNotFoundResponse()
+  getEidsAuthorization(@CurrentUser() user: AuthenticatedUser, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string) { return this.eidsAuthorization.getAuthorization(user, id); }
 
   @Post(':id/publish')
   @ApiOperation({ summary: 'İlanı seçilen bağlı portal hesaplarına yayın için kuyruğa alır' })

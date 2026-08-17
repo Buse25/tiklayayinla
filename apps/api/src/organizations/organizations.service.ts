@@ -9,6 +9,7 @@ import { OrganizationApplicationResponseDto } from './dto/organization-applicati
 import { ReviewOrganizationApplicationDto } from './dto/review-organization-application.dto';
 import { EditOrganizationApplicationDto } from './dto/edit-organization-application.dto';
 import { UpdateOrganizationApplicationStatusDto } from './dto/update-organization-application-status.dto';
+import { EidsService } from '../eids/eids.service';
 
 const applicationInclude = {
   user: { select: { id: true, email: true, firstName: true, lastName: true } },
@@ -20,7 +21,7 @@ type ApplicationRecord = Prisma.OrganizationApplicationGetPayload<{ include: typ
 export class OrganizationsService {
   private readonly logger = new Logger(OrganizationsService.name);
 
-  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly mailService?: MailService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly mailService: MailService, private readonly eids: EidsService) {}
 
   async createApplication(actor: Pick<AuthenticatedUser, 'id' | 'role'>, dto: CreateOrganizationApplicationDto): Promise<OrganizationApplicationResponseDto> {
     await this.ensureApplicationEligibility(actor, dto);
@@ -280,6 +281,13 @@ export class OrganizationsService {
   }
 
   private async ensureApplicationEligibility(actor: Pick<AuthenticatedUser, 'id' | 'role'>, dto: CreateOrganizationApplicationDto): Promise<void> {
+    if (await this.eids.isConfigured()) {
+      const identity = await this.eids.getIdentityStatus(actor.id);
+      if (!identity.verified) {
+        throw new ConflictException('Kurumsal başvuru yapabilmek için önce EİDS kimlik doğrulamasını tamamlamalısınız.');
+      }
+    }
+
     if (actor.role === UserRole.ADMIN) return;
 
     if (dto.organizationType === OrganizationType.OTHER) {

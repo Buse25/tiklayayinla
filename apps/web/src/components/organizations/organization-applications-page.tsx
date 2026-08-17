@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { authenticatedFetch } from '../../lib/api-client';
 import { sectorLabel, type OrganizationType } from '../../lib/sector';
-import { getLicenseNumberRequirement, getOrganizationApplicationStatusBadge, getOrganizationApplicationViewState, normalizeApplicationLicenseNumber, type OrganizationApplicationItem } from '../../lib/organization-applications';
+import { getLicenseNumberRequirement, getOrganizationApplicationStatusBadge, getOrganizationApplicationViewState, isCorporateApplicationBlockedByEids, normalizeApplicationLicenseNumber, type OrganizationApplicationItem } from '../../lib/organization-applications';
 import { AppShell } from '../layout/app-shell';
 
 type Application = OrganizationApplicationItem;
@@ -19,6 +19,13 @@ type Profile = {
   status: string;
   createdAt: string;
   updatedAt: string;
+  phoneVerified: boolean;
+  eids: {
+    configured: boolean;
+    verified: boolean;
+    status: 'NOT_VERIFIED' | 'PENDING' | 'VERIFIED' | 'FAILED';
+    verifiedAt: string | null;
+  };
   organization?: {
     organizationId: string | null;
     organizationName: string | null;
@@ -96,6 +103,10 @@ export function OrganizationApplicationsPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (profile?.eids.configured && !profile.eids.verified) {
+      setError('Kurumsal başvuru yapabilmek için önce EİDS kimlik doğrulamanızı tamamlamanız gerekiyor.');
+      return;
+    }
     if (form.organizationType === 'AUTO_DEALER' && !form.licenseNumber.trim()) {
       setError('Motorlu Kara Taşıtı Ticareti Yetki Belge No zorunludur.');
       return;
@@ -138,6 +149,7 @@ export function OrganizationApplicationsPage() {
   }
 
   const canOpenForm = viewState.kind === 'none' || viewState.kind === 'rejected';
+  const eidsRequired = isCorporateApplicationBlockedByEids(profile?.eids);
 
   return (
     <AppShell>
@@ -157,12 +169,17 @@ export function OrganizationApplicationsPage() {
       {viewState.kind === 'approved' && <StatusPanel tone="emerald" title="Kurumsal hesabınız onaylandı." description={viewState.message} />}
       {viewState.kind === 'rejected' && <StatusPanel tone="rose" title="Kurumsal başvurunuz reddedildi." description={viewState.rejectionReason} />}
 
-      {viewState.kind === 'rejected' && !showForm && <section className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+      {viewState.kind === 'rejected' && !showForm && !eidsRequired && <section className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
         <p>{viewState.rejectionReason}</p>
         <button className="mt-3 rounded-xl bg-rose-700 px-4 py-2 font-semibold text-white hover:bg-rose-800" onClick={() => setShowForm(true)} type="button">Yeniden Başvur</button>
       </section>}
 
-      {canOpenForm && showForm && <section className="rounded-2xl border bg-white p-6 shadow-sm">
+      {canOpenForm && eidsRequired && <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <p className="font-semibold">Kurumsal başvuru yapabilmek için önce EİDS kimlik doğrulamanızı tamamlamanız gerekiyor.</p>
+        <a className="mt-3 inline-flex rounded-xl bg-teal-700 px-4 py-2 font-semibold text-white hover:bg-teal-800" href="/profile">Profilde EİDS doğrulamasına git</a>
+      </section>}
+
+      {canOpenForm && !eidsRequired && showForm && <section className="rounded-2xl border bg-white p-6 shadow-sm">
         <form className="grid gap-4 md:grid-cols-2" onSubmit={submit}>
           <Field label="Firma unvanı"><input className="rounded-lg border p-3" onChange={(event) => setForm((current) => ({ ...current, organizationName: event.target.value }))} value={form.organizationName} /></Field>
           <Field label="Sektör"><select className="rounded-lg border bg-white p-3" onChange={(event) => setForm((current) => ({ ...current, organizationType: event.target.value as OrganizationType }))} value={form.organizationType}><option value="REAL_ESTATE_AGENCY">Emlak Ofisi</option><option value="AUTO_DEALER">Galeri / Otomotiv</option><option value="OTHER">Diğer</option></select></Field>
@@ -182,7 +199,7 @@ export function OrganizationApplicationsPage() {
         </form>
       </section>}
 
-      {!showForm && viewState.kind === 'rejected' && <button className="mt-4 rounded-xl border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-slate-100" onClick={() => setShowForm(true)} type="button">Yeniden Başvur</button>}
+      {!showForm && viewState.kind === 'rejected' && !eidsRequired && <button className="mt-4 rounded-xl border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-slate-100" onClick={() => setShowForm(true)} type="button">Yeniden Başvur</button>}
 
       <section className="mt-6 rounded-2xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold">Başvurular</h2>

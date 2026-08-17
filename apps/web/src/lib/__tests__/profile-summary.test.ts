@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildProfileOrganizationSummary, getEidsInformationMessage, getProfileNavigationLinks } from '../profile-summary';
+import { buildProfileOrganizationSummary, getProfileNavigationLinks } from '../profile-summary';
 
 test('profile summary includes organization account information', () => {
   const summary = buildProfileOrganizationSummary({
@@ -38,8 +38,4 @@ test('profile summary includes organization account information', () => {
 test('admin navigation is visible only for admin users', () => {
   assert.equal(getProfileNavigationLinks('USER').some((link) => link.href === '/admin/organization-applications'), false);
   assert.equal(getProfileNavigationLinks('ADMIN').some((link) => link.href === '/admin/organization-applications'), true);
-});
-
-test('eids information is a passive info card only', () => {
-  assert.equal(getEidsInformationMessage(), 'EİDS kullanıcı doğrulama altyapısı henüz yapılandırılmadı.');
 });

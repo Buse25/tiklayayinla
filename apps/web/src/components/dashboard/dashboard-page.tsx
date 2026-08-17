@@ -190,27 +190,35 @@ export function DashboardPage() {
         {/* Ana İlan İstatistikleri */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter mb-lg">
           {/* Aktif İlanlar */}
-          <div className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] hover:-translate-y-1 transition-transform duration-300">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>inventory_2</span>
+          <div className="group relative bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] hover:-translate-y-1 hover:shadow-md hover:border-primary/50 transition-all duration-300 cursor-pointer">
+            <Link href="/listings?status=ACTIVE" className="absolute inset-0 z-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2" aria-label="Aktif İlanlar" />
+            <div className="relative z-10 pointer-events-none">
+              <div className="flex justify-between items-start mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>inventory_2</span>
+                </div>
               </div>
+              <h3 className="text-secondary font-label-md mb-1">Aktif İlanlar</h3>
+              <p className="text-headline-xl font-headline-xl text-on-surface">{summary?.listings.active ?? 0}</p>
             </div>
-            <h3 className="text-secondary font-label-md mb-1">Aktif İlanlar</h3>
-            <p className="text-headline-xl font-headline-xl text-on-surface">{summary?.listings.active ?? 0}</p>
-            <p className="text-label-sm text-secondary mt-2">{summary?.listings.draft ?? 0} taslak ilan bulunuyor</p>
+            <Link href="/listings?status=DRAFT" className="relative z-20 text-label-sm text-secondary mt-2 hover:text-primary hover:underline transition-colors block w-fit focus:outline-none focus:ring-2 focus:ring-primary/40 focus:rounded">
+              {summary?.listings.draft ?? 0} taslak ilan bulunuyor
+            </Link>
           </div>
 
           {/* Yayınlanan İlanlar */}
-          <div className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] hover:-translate-y-1 transition-transform duration-300">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-secondary-container rounded-lg text-on-secondary-container">
-                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>cloud_done</span>
+          <div className="group relative bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] hover:-translate-y-1 hover:shadow-md hover:border-primary/50 transition-all duration-300 cursor-pointer">
+            <Link href="/listings?status=ACTIVE" className="absolute inset-0 z-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2" aria-label="Yayındaki İlanlar" />
+            <div className="relative z-10 pointer-events-none">
+              <div className="flex justify-between items-start mb-4">
+                <div className="p-2 bg-secondary-container rounded-lg text-on-secondary-container">
+                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>cloud_done</span>
+                </div>
               </div>
+              <h3 className="text-secondary font-label-md mb-1">Yayındaki İlanlar</h3>
+              <p className="text-headline-xl font-headline-xl text-on-surface">{summary?.publications.published ?? 0}</p>
+              <p className="text-label-sm text-secondary mt-2">Aktif ilan yayınları</p>
             </div>
-            <h3 className="text-secondary font-label-md mb-1">Yayındaki İlanlar</h3>
-            <p className="text-headline-xl font-headline-xl text-on-surface">{summary?.publications.published ?? 0}</p>
-            <p className="text-label-sm text-secondary mt-2">Aktif ilan yayınları</p>
           </div>
 
           {/* Yayın Başarı Oranı */}
@@ -226,17 +234,20 @@ export function DashboardPage() {
           </div>
 
           {/* Bağlı Portallar */}
-          <div className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] hover:-translate-y-1 transition-transform duration-300">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-tertiary-fixed rounded-lg text-on-tertiary-fixed-variant">
-                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>sync</span>
+          <div className="group relative bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-[0px_4px_20px_rgba(15,23,42,0.05)] hover:-translate-y-1 hover:shadow-md hover:border-primary/50 transition-all duration-300 cursor-pointer">
+            <Link href="/portal-accounts" className="absolute inset-0 z-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2" aria-label="Bağlı Portallar" />
+            <div className="relative z-10 pointer-events-none">
+              <div className="flex justify-between items-start mb-4">
+                <div className="p-2 bg-tertiary-fixed rounded-lg text-on-tertiary-fixed-variant">
+                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>sync</span>
+                </div>
               </div>
+              <h3 className="text-secondary font-label-md mb-1">Bağlı Portallar</h3>
+              <p className="text-headline-xl font-headline-xl text-on-surface">
+                {summary ? `${summary.portalAccounts.connected} / ${summary.portalAccounts.totalActivePortals}` : '0 / 0'}
+              </p>
+              <p className="text-label-sm text-secondary mt-2">Aktif portal bağlantıları</p>
             </div>
-            <h3 className="text-secondary font-label-md mb-1">Bağlı Portallar</h3>
-            <p className="text-headline-xl font-headline-xl text-on-surface">
-              {summary ? `${summary.portalAccounts.connected} / ${summary.portalAccounts.totalActivePortals}` : '0 / 0'}
-            </p>
-            <p className="text-label-sm text-secondary mt-2">Aktif portal bağlantıları</p>
           </div>
         </section>
 
@@ -347,23 +358,26 @@ export function DashboardPage() {
           {/* Son Aday Müşteriler -> Son Yayınlar & Hatalar */}
           <section className="lg:col-span-4 flex flex-col gap-6">
             {/* İlan Aktivitesi */}
-            <div className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-sm animate-fade-in">
-              <h3 className="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">calendar_today</span>
-                İlan Aktivitesi
-              </h3>
-              <div className="divide-y divide-outline-variant text-sm">
-                <div className="flex justify-between py-2.5">
-                  <span className="text-secondary font-medium">Bugün</span>
-                  <span className="font-bold text-on-surface bg-surface-container-low px-2 py-0.5 rounded">{summary?.listings.createdToday ?? 0}</span>
-                </div>
-                <div className="flex justify-between py-2.5">
-                  <span className="text-secondary font-medium">Son 7 Gün</span>
-                  <span className="font-bold text-on-surface bg-surface-container-low px-2 py-0.5 rounded">{summary?.listings.createdLast7Days ?? 0}</span>
-                </div>
-                <div className="flex justify-between py-2.5">
-                  <span className="text-secondary font-medium">Son 30 Gün</span>
-                  <span className="font-bold text-on-surface bg-surface-container-low px-2 py-0.5 rounded">{summary?.listings.createdLast30Days ?? 0}</span>
+            <div className="group relative bg-surface-container-lowest p-md rounded-xl border border-outline-variant shadow-sm hover:-translate-y-1 hover:shadow-md hover:border-primary/50 transition-all duration-300 cursor-pointer animate-fade-in">
+              <Link href="/activity" className="absolute inset-0 z-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2" aria-label="İlan Aktivitesi" />
+              <div className="relative z-10 pointer-events-none">
+                <h3 className="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-[20px]">calendar_today</span>
+                  İlan Aktivitesi
+                </h3>
+                <div className="divide-y divide-outline-variant text-sm">
+                  <div className="flex justify-between py-2.5">
+                    <span className="text-secondary font-medium">Bugün</span>
+                    <span className="font-bold text-on-surface bg-surface-container-low px-2 py-0.5 rounded">{summary?.listings.createdToday ?? 0}</span>
+                  </div>
+                  <div className="flex justify-between py-2.5">
+                    <span className="text-secondary font-medium">Son 7 Gün</span>
+                    <span className="font-bold text-on-surface bg-surface-container-low px-2 py-0.5 rounded">{summary?.listings.createdLast7Days ?? 0}</span>
+                  </div>
+                  <div className="flex justify-between py-2.5">
+                    <span className="text-secondary font-medium">Son 30 Gün</span>
+                    <span className="font-bold text-on-surface bg-surface-container-low px-2 py-0.5 rounded">{summary?.listings.createdLast30Days ?? 0}</span>
+                  </div>
                 </div>
               </div>
             </div>

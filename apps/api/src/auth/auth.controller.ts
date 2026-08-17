@@ -8,16 +8,18 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthResponseDto, UserResponseDto } from './dto/auth-response.dto';
 import { ResendVerificationDto, VerificationActionResponseDto, VerificationRequiredResponseDto, VerificationStatusResponseDto, VerifyEmailDto } from './dto/verification.dto';
+import { PhoneVerificationResponseDto, VerifyPhoneDto } from './dto/phone-verification.dto';
 import type { AuthenticatedUser } from './interfaces/authenticated-user.interface';
 import { JwtAccessGuard } from './guards/jwt-access.guard';
 import { EmailVerificationService } from './email-verification.service';
 import { ForgotPasswordRequestDto, ForgotPasswordResetDto } from './dto/forgot-password.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
+import { PhoneVerificationService } from './phone-verification.service';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService, private readonly emailVerificationService: EmailVerificationService) {}
+  constructor(private readonly authService: AuthService, private readonly emailVerificationService: EmailVerificationService, private readonly phoneVerificationService: PhoneVerificationService) {}
 
   @Get('health')
   health() { return { module: 'auth', status: 'ready' }; }
@@ -103,6 +105,20 @@ export class AuthController {
   async verificationStatus(@Headers('x-verification-context') verificationContext?: string, @Headers('x-verification-email') email?: string): Promise<VerificationStatusResponseDto> {
     return this.emailVerificationService.getStatus({ verificationContext, email });
   }
+
+  @Post('phone-verification/request')
+  @UseGuards(JwtAccessGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiBearerAuth()
+  @ApiOkResponse({ type: PhoneVerificationResponseDto })
+  requestPhoneVerification(@CurrentUser() user: AuthenticatedUser): Promise<PhoneVerificationResponseDto> { return this.phoneVerificationService.requestCode(user.id); }
+
+  @Post('phone-verification/verify')
+  @UseGuards(JwtAccessGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  verifyPhone(@CurrentUser() user: AuthenticatedUser, @Body() dto: VerifyPhoneDto): Promise<void> { return this.phoneVerificationService.verifyCode(user.id, dto); }
 
   @Get('me')
   @UseGuards(JwtAccessGuard)

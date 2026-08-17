@@ -58,6 +58,8 @@ async function proxy(request: NextRequest, { params }: RouteContext) {
   }
 
   const response = new NextResponse(data, { status: upstream.status, headers });
+  const setCookie = upstream.headers.get('set-cookie');
+  if (setCookie) response.headers.set('set-cookie', setCookie);
   if (freshTokens) setSessionCookies(response, freshTokens);
   return response;
   } catch {

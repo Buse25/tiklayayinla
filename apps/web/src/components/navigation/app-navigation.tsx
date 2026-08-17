@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Activity, LayoutDashboard, ShieldCheck, User, FileText } from 'lucide-react';
+import { Activity, LayoutDashboard, ShieldCheck, User, Users, FileText, CreditCard } from 'lucide-react';
 import { getProfileNavigationLinks, type ProfileRole } from '../../lib/profile-summary';
 
 type AppNavigationProps = {
@@ -42,5 +42,7 @@ function iconFor(href: string) {
   if (href === '/profile') return <User size={16} />;
   if (href === '/organization-applications') return <FileText size={16} />;
   if (href === '/activity') return <Activity size={16} />;
+  if (href === '/admin/plans') return <CreditCard size={16} />;
+  if (href === '/admin/users') return <Users size={16} />;
   return <ShieldCheck size={16} />;
 }

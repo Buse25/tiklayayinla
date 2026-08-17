@@ -197,7 +197,18 @@ export class ListingsService {
 
   async findAll(ownerId: string, query: ListListingsQueryDto): Promise<ListingsPageResponseDto> {
     const { page, limit, status, listingType, propertyType, city, district, search, sortBy, sortOrder } = query;
-    const where: Prisma.ListingWhereInput = { ownerId, status: status ?? { not: ListingStatus.DELETED }, ...(status && { status }), ...(listingType && { listingType }), ...(propertyType && { propertyType }), ...(city && { city: { equals: city, mode: 'insensitive' } }), ...(district && { district: { equals: district, mode: 'insensitive' } }), ...(search && { OR: [{ title: { contains: search, mode: 'insensitive' } }, { description: { contains: search, mode: 'insensitive' } }] }) };
+    const normalizedSearch = search?.trim();
+    const where: Prisma.ListingWhereInput = { ownerId, status: status ?? { not: ListingStatus.DELETED }, ...(status && { status }), ...(listingType && { listingType }), ...(propertyType && { propertyType }), ...(city && { city: { equals: city, mode: 'insensitive' } }), ...(district && { district: { equals: district, mode: 'insensitive' } }), ...(normalizedSearch && { OR: [
+      { title: { contains: normalizedSearch, mode: 'insensitive' } },
+      { description: { contains: normalizedSearch, mode: 'insensitive' } },
+      { listingNo: { contains: normalizedSearch, mode: 'insensitive' } },
+      { city: { contains: normalizedSearch, mode: 'insensitive' } },
+      { district: { contains: normalizedSearch, mode: 'insensitive' } },
+      { neighborhood: { contains: normalizedSearch, mode: 'insensitive' } },
+      { address: { contains: normalizedSearch, mode: 'insensitive' } },
+      { vehicleDetails: { is: { OR: [{ brand: { contains: normalizedSearch, mode: 'insensitive' } }, { model: { contains: normalizedSearch, mode: 'insensitive' } }] } } },
+      { publications: { some: { portal: { name: { contains: normalizedSearch, mode: 'insensitive' } } } } },
+    ] }) };
     if (status === ListingStatus.DELETED) where.status = { not: ListingStatus.DELETED };
     const [listings, total] = await this.prisma.$transaction([this.prisma.listing.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { [sortBy]: sortOrder }, include: detailInclude }), this.prisma.listing.count({ where })]);
     return { data: listings.map(toResponse), pagination: { page, limit, total, totalPages: total === 0 ? 0 : Math.ceil(total / limit) } };

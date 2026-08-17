@@ -37,6 +37,15 @@ export type OrganizationLicenseRequirement = {
   label: string;
 };
 
+export type CorporateApplicationEidsState = {
+  configured: boolean;
+  verified: boolean;
+};
+
+export function isCorporateApplicationBlockedByEids(eids: CorporateApplicationEidsState | null | undefined): boolean {
+  return eids?.configured === true && eids.verified === false;
+}
+
 export function getLatestOrganizationApplication(applications: OrganizationApplicationItem[]): OrganizationApplicationItem | null {
   if (!applications.length) return null;
   return [...applications].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0] ?? null;

@@ -33,6 +33,44 @@ async function main() {
   for (const [code, label, category] of features) {
     await prisma.featureDefinition.upsert({ where: { code }, update: { label, category, isActive: true }, create: { code, label, category } });
   }
+
+  const defaultPlans = [
+    {
+      name: 'Eko Paket',
+      monthlyPrice: 250,
+      listingLimit: 100,
+      portalLimit: 10,
+      features: ['100 İlan', '10 Portal', '500 Müşteri'],
+      period: 'aylık',
+      isActive: true,
+    },
+    {
+      name: 'Plus Paket',
+      monthlyPrice: 500,
+      listingLimit: 250,
+      portalLimit: 15,
+      features: ['250 İlan', '15 Portal', '1000 Müşteri'],
+      period: 'aylık',
+      isActive: true,
+    },
+    {
+      name: 'Pro Paket',
+      monthlyPrice: 1000,
+      listingLimit: 999999,
+      portalLimit: 99,
+      features: ['Sınırsız İlan', 'Tüm Portallar', 'Sınırsız Müşteri'],
+      period: 'aylık',
+      isActive: true,
+    },
+  ];
+
+  for (const plan of defaultPlans) {
+    await prisma.plan.upsert({
+      where: { name: plan.name },
+      update: {},
+      create: plan,
+    });
+  }
 }
 
 main().then(() => prisma.$disconnect()).catch(async error => { console.error(error); await prisma.$disconnect(); process.exit(1); });
